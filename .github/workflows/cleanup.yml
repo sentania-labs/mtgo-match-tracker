@@ -1,0 +1,28 @@
+name: Cleanup
+
+on:
+  schedule:
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup-docker:
+    runs-on: [self-hosted, linux, docker]
+    steps:
+      - name: docker system prune
+        run: docker system prune -f --volumes
+
+      - name: docker builder prune
+        run: docker builder prune -f --keep-storage 5GB
+
+  cleanup-generic:
+    runs-on: [self-hosted, linux, generic]
+    steps:
+      - name: docker system prune
+        run: docker system prune -f --volumes || true
+
+      - name: docker builder prune
+        run: docker builder prune -f --keep-storage 5GB || true

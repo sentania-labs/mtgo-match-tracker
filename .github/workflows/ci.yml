@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: [self-hosted, linux, generic]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: ruff check
+        run: ruff check app/ tests/
+
+  typecheck:
+    runs-on: [self-hosted, linux, generic]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install typecheck deps
+        run: |
+          pip install mypy types-passlib sqlalchemy-stubs
+          pip install -r requirements.txt
+
+      - name: mypy
+        run: mypy app/ --ignore-missing-imports --explicit-package-bases
+
+  test:
+    runs-on: [self-hosted, linux, generic]
+    env:
+      DATABASE_URL: sqlite+aiosqlite:///:memory:
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install test deps
+        run: |
+          pip install pytest pytest-asyncio pytest-cov httpx aiosqlite
+          pip install -r requirements.txt
+
+      - name: pytest
+        run: pytest tests/ -v --cov=app --cov-fail-under=70

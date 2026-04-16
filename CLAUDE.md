@@ -165,6 +165,116 @@ Agent endpoints (`/agent/*`) require Bearer token auth (token issued at agent re
 - **Mulligan analysis**: Mulligan rate correlation with wins
 - **Trend tracking**: Win rate over time by format/archetype
 
+## Testing Strategy
+
+Philosophy: test the behavior users and agents depend on; mock everything external; don't write tests for the database ORM.
+
+### What gets tested
+
+| Layer | What | How |
+|-------|------|-----|
+| **API route smoke** | Every endpoint returns a sane status code | `httpx.AsyncClient` + `ASGITransport`, async pytest |
+| **API behavior** | Correct response shape, dedup logic, user scoping | Same client; assert on response body |
+| **Business logic** | Stats calculations, archetype matching, dedup | Pure unit tests, no I/O |
+| **Model constraints** | UniqueConstraint on `(user_id, mtgo_match_id)` | SQLite in-memory via `aiosqlite` |
+| **Integration** | Alembic migration runs clean; stack starts healthy | CI compose smoke test |
+
+### What does NOT get tested
+
+- SQLAlchemy ORM itself (trust the library)
+- The database's query planner
+- Trivial getters/setters with no logic
+
+### Mocking strategy
+
+Tests never touch a real PostgreSQL instance. Use:
+- `aiosqlite` in-memory DB for tests that need real SQL behavior (constraints, FKs)
+- `monkeypatch` / `unittest.mock` for external services (Scryfall, TopDeck.gg, archetype scrapers)
+- Hardcoded dev user fixture replacing `get_current_user` dependency (already in place from scaffold)
+
+### Test layout
+
+```
+tests/
+├── conftest.py           # async client fixture, in-memory DB engine, dev user override
+├── unit/
+│   ├── test_dedup.py     # mtgo_match_id dedup logic
+│   ├── test_stats.py     # win rate / matchup matrix calculations
+│   └── test_archetype.py # archetype classification logic
+└── integration/
+    ├── test_routes_matches.py    # smoke + behavior for /api/v1/matches
+    ├── test_routes_agent.py      # register + upload endpoints
+    ├── test_routes_decklists.py
+    ├── test_routes_drafts.py
+    ├── test_routes_archetypes.py
+    └── test_routes_stats.py
+```
+
+### Coverage gate
+
+CI fails if overall coverage drops below **70%**. Routes and business logic must be covered; model boilerplate is excluded. Use `pytest-cov` with `--cov=app --cov-fail-under=70`.
+
+### Running tests
+
+```bash
+# Local
+pip install -r requirements-dev.txt
+pytest tests/ -v --cov=app --cov-report=term-missing
+
+# Inside container (mirrors CI)
+docker compose exec app pytest tests/ -v
+```
+
+## CI/CD
+
+### Runner layout (from ScarGuard pattern)
+
+All runners are self-hosted. Three runner labels in use:
+
+| Label | Runner | Used for |
+|-------|--------|----------|
+| `[self-hosted, linux, generic]` | Lightweight x86 container | Lint, typecheck, pytest |
+| `[self-hosted, linux, docker]` | x86 with Docker socket | Docker builds, Trivy, compose smoke test |
+
+No Jetson/ARM runner needed (no GPU workloads). Multi-arch builds (amd64 + arm64) via QEMU emulation on the docker runner for future ARM deployment flexibility.
+
+### Workflow layout (4 files)
+
+**`ci.yml`** — runs on PR only:
+- Lint (ruff — `app/` and `tests/`)
+- Type check (mypy — `app/`)
+- pytest with coverage gate (≥70%)
+
+**`build.yml`** — runs on PR and main-push:
+- PR: multi-arch build + load for test + in-container pytest + Trivy CVE scan (CRITICAL/HIGH) + compose smoke test
+- main-push: multi-arch build only (warms GHA cache; tests already passed on the PR)
+
+**`release.yml`** — runs on `v*.*.*` tag push:
+- Build and push app + caddy images to GHCR (`ghcr.io/sentania-labs/tamiyo-*`)
+- Tags: semver + latest
+- Creates GitHub Release with auto-generated notes
+
+**`cleanup.yml`** — weekly Sunday 03:00 UTC:
+- `docker system prune -f` + `docker builder prune --keep-storage 5GB` on each runner
+
+### Token scoping (CodeQL-safe)
+
+Default `permissions: contents: read` at workflow level. Per-job blocks elevate only where needed:
+- `packages: write` for image push jobs
+- `contents: write` for release creation
+
+### Build caching
+
+GHA cache (`type=gha`) scoped per image (`scope=app`, `scope=caddy`). On main-push, build warms cache even though tests are skipped.
+
+### Trivy scanning
+
+Fail on CRITICAL and HIGH CVEs with known fixes. Use `ignore-unfixed: true` to suppress noise from unfixable base-image CVEs. Run Trivy before in-container tests (fail fast).
+
+### Compose smoke test
+
+Runs after all image builds pass. Seeds minimal `.env` (TLS_MODE=off), starts the stack, polls `/healthz` until healthy, tears down. Tests run in DinD (Docker-in-Docker) — use `docker create + cp` not bind mounts for injecting test files.
+
 ## Development
 
 ```bash
@@ -174,8 +284,12 @@ docker compose up -d
 # Run migrations
 docker compose exec app alembic upgrade head
 
-# Run tests
-docker compose exec app pytest
+# Run tests locally
+pytest tests/ -v --cov=app --cov-report=term-missing
+
+# Lint + type check (mirrors CI)
+ruff check app/ tests/
+mypy app/ --ignore-missing-imports
 
 # View logs
 docker compose logs -f app
