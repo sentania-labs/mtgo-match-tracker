@@ -43,6 +43,14 @@ Thumbs.db
 # Alembic
 alembic/versions/__pycache__/
 
+# TLS certs (lab deployments drop these into the tamiyo-certs volume;
+# they should never live in the repo)
+certs/
+
+# Caddy — active config is generated at container start from
+# services/caddy/entrypoint.sh; the template is checked in.
+services/caddy/Caddyfile
+
 # PyInstaller
 *.spec
 dist/

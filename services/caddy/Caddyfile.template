@@ -1,0 +1,40 @@
+# Tamiyo — Caddy reverse proxy configuration (REFERENCE ONLY)
+#
+# This file is NOT read at runtime. The active Caddyfile is generated
+# by services/caddy/entrypoint.sh based on TLS_MODE / TLS_DOMAIN env vars.
+# Any change intended to affect production behavior must be made there.
+#
+# Three TLS modes are supported:
+#   off     — HTTP only on :80 (dev/test)
+#   manual  — Operator-supplied cert + key at /certs/cert.pem, /certs/key.pem
+#   auto    — Let's Encrypt automatic HTTPS (requires public TLS_DOMAIN)
+
+# ── Common snippet: reverse proxy + hardening ──────────────────────────────
+(tamiyo) {
+	header {
+		X-Frame-Options DENY
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+	reverse_proxy app:8000
+}
+
+# ── Mode: off ──────────────────────────────────────────────────────────────
+# :80 {
+#     import tamiyo
+# }
+
+# ── Mode: manual ───────────────────────────────────────────────────────────
+# :443 {
+#     tls /certs/cert.pem /certs/key.pem
+#     import tamiyo
+# }
+# :80 {
+#     redir https://{host}{uri} permanent
+# }
+
+# ── Mode: auto ─────────────────────────────────────────────────────────────
+# mtgo.example.com {
+#     import tamiyo
+# }

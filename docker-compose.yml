@@ -1,0 +1,75 @@
+name: tamiyo
+
+# MTGO Match Tracker (Tamiyo) — Docker Compose stack.
+#
+# Services:
+#   db     — PostgreSQL 16 (internal only)
+#   app    — FastAPI / uvicorn (internal only, port 8000)
+#   caddy  — TLS-terminating reverse proxy (only service published externally)
+#
+# TLS mode is driven by the TLS_MODE env var (off | manual | auto). See
+# services/caddy/entrypoint.sh for how the Caddyfile is generated.
+#
+# Published ports default to 80/443. Override with HTTP_PORT/HTTPS_PORT
+# (e.g. HTTP_PORT=8080 HTTPS_PORT=8443 for lab deployments that can't
+# bind to privileged ports).
+
+services:
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mtgo
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_DB: mtgo_tracker
+    volumes:
+      - tamiyo-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mtgo -d mtgo_tracker"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    # No host ports — Caddy fronts all external traffic.
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://mtgo:${DB_PASSWORD:-changeme}@db/mtgo_tracker}
+      SECRET_KEY: ${SECRET_KEY:-changeme}
+      TOPDECK_API_KEY: ${TOPDECK_API_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  caddy:
+    build:
+      context: .
+      dockerfile: services/caddy/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    environment:
+      TLS_MODE: ${TLS_MODE:-off}
+      TLS_DOMAIN: ${TLS_DOMAIN:-}
+      HTTPS_PORT: ${HTTPS_PORT:-443}
+    volumes:
+      - tamiyo-certs:/certs:ro          # manual-mode cert + key live here
+      - caddy-data:/data                # Let's Encrypt ACME state
+      - caddy-config:/config            # Caddy's own runtime config dir
+    depends_on:
+      - app
+
+volumes:
+  tamiyo-db:
+    name: tamiyo-db
+  tamiyo-certs:
+    name: tamiyo-certs
+  caddy-data:
+    name: tamiyo-caddy-data
+  caddy-config:
+    name: tamiyo-caddy-config
