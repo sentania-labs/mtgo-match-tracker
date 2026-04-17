@@ -23,7 +23,7 @@ jobs:
         run: pip install ruff
 
       - name: ruff check
-        run: ruff check app/ tests/
+        run: ruff check app/ tests/ agent/
 
   typecheck:
     runs-on: [self-hosted, linux, generic]
@@ -37,7 +37,7 @@ jobs:
 
       - name: Install typecheck deps
         run: |
-          pip install mypy types-passlib sqlalchemy-stubs
+          pip install mypy sqlalchemy-stubs
           pip install -r requirements.txt
 
       - name: mypy

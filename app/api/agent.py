@@ -1,23 +1,26 @@
-"""Agent-facing endpoints: registration + match upload.
+"""Agent-facing endpoints: registration, heartbeat, match upload.
 
-Bearer-token auth will be added in Phase 1.5. The upload endpoint uses
-`get_current_agent` (header-sniffing stub) so the auth flow is wired
-correctly even before real token validation exists.
+Registration and heartbeat are real (DB-backed). Match upload is still
+a stub — it acknowledges the payload and returns 202 without persisting.
+Real ingest is post-MVP.
 """
 from __future__ import annotations
 
-import secrets
-import uuid
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_agent
-from app.models import AgentRegistration
+from app.db import get_session
+from app.models import AgentRegistration, User
 from app.schemas import (
     AgentMatchUpload,
     AgentRegisterRequest,
     AgentRegisterResponse,
 )
+from app.security import generate_token, hash_token, verify_password
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -27,32 +30,52 @@ router = APIRouter(prefix="/agent", tags=["agent"])
     response_model=AgentRegisterResponse,
     status_code=status.HTTP_201_CREATED,
 )
-async def register_agent(payload: AgentRegisterRequest) -> AgentRegisterResponse:
-    """Register a new agent instance for this user.
-
-    TODO(phase-1.5): verify username/password, create AgentRegistration row,
-    hash + store the api_token, return the plaintext token (shown once).
-    Current behavior is a stub that returns a well-formed response so the
-    agent's registration flow can be exercised end-to-end.
-    """
-    _ = payload  # username/password validation happens in Phase 1.5
-    return AgentRegisterResponse(
-        agent_id=uuid.uuid4(),
-        api_token=secrets.token_urlsafe(32),
+async def register_agent(
+    payload: AgentRegisterRequest,
+    session: AsyncSession = Depends(get_session),
+) -> AgentRegisterResponse:
+    result = await session.execute(
+        select(User).where(User.username == payload.username, User.is_active.is_(True))
     )
+    user = result.scalar_one_or_none()
+    if user is None or not verify_password(payload.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid credentials",
+        )
+
+    token = generate_token()
+    registration = AgentRegistration(
+        user_id=user.id,
+        machine_name=payload.machine_name,
+        platform=payload.platform,
+        api_token_hash=hash_token(token),
+    )
+    session.add(registration)
+    await session.commit()
+    await session.refresh(registration)
+
+    return AgentRegisterResponse(agent_id=registration.agent_id, api_token=token)
+
+
+@router.post("/heartbeat", status_code=status.HTTP_204_NO_CONTENT)
+async def heartbeat(
+    agent: AgentRegistration = Depends(get_current_agent),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    agent.last_seen = datetime.now(timezone.utc)
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/upload", status_code=status.HTTP_202_ACCEPTED)
 async def upload_match(
     payload: AgentMatchUpload,
     agent: AgentRegistration = Depends(get_current_agent),
+    session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Accept a match result from an agent.
-
-    TODO(phase-1.5): upsert match row keyed on (user_id, mtgo_match_id),
-    create games + plays, bump agent.last_seen.
-    """
-    _ = agent  # will scope the upsert once real auth lands
+    agent.last_seen = datetime.now(timezone.utc)
+    await session.commit()
     return {
         "status": "queued",
         "mtgo_match_id": payload.match.mtgo_match_id,

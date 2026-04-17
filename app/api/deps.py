@@ -1,28 +1,24 @@
 """API dependencies.
 
-Auth middleware is Phase 1.5 — for now `get_current_user` returns a
-hardcoded dev User so routes can be built and exercised. Do NOT ship this
-to production. The stub is intentionally loud: it does not touch the DB
-and returns a synthetic object so anything that tries to persist against
-it will fail fast.
-
-`get_current_agent` mirrors the pattern for agent-authenticated routes:
-it extracts a Bearer token from the Authorization header (accepting
-missing tokens in stub mode) and returns a synthetic AgentRegistration.
-Phase 1.5 will replace this with a real token → AgentRegistration
-lookup.
+`get_current_user` is still a dev stub returning a synthetic User —
+browser-facing auth (login/session) is out of MVP scope. Agent-facing
+auth IS real: `get_current_agent` resolves the bearer token against
+agent_registrations and rejects missing/unknown/revoked tokens.
 """
 from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import Header
+from fastapi import Depends, Header, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db import get_session
 from app.models import AgentRegistration, User
+from app.security import hash_token
 
 DEV_USER_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
-DEV_AGENT_ID = uuid.UUID("00000000-0000-0000-0000-0000000000a1")
 
 
 def get_current_user() -> User:
@@ -37,23 +33,30 @@ def get_current_user() -> User:
     return user
 
 
-def get_current_agent(
-    authorization: str | None = Header(default=None),
-) -> AgentRegistration:
-    """Resolve the calling agent from the Authorization header.
+def _extract_bearer(authorization: str | None) -> str | None:
+    if not authorization:
+        return None
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        return None
+    return token.strip()
 
-    TODO(phase-1.5): look up api_token_hash in agent_registrations,
-    reject if missing/revoked, bump last_seen.
-    """
-    _token = authorization.split(" ", 1)[1] if authorization and " " in authorization else None
-    return AgentRegistration(
-        id=DEV_AGENT_ID,
-        user_id=DEV_USER_ID,
-        agent_id=DEV_AGENT_ID,
-        machine_name="dev-agent",
-        platform="stub",
-        api_token_hash="!",  # noqa: S105 — stub, not persisted
-        last_seen=None,
-        created_at=datetime.now(timezone.utc),
-        revoked_at=None,
+
+async def get_current_agent(
+    authorization: str | None = Header(default=None),
+    session: AsyncSession = Depends(get_session),
+) -> AgentRegistration:
+    token = _extract_bearer(authorization)
+    if not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="missing bearer token")
+    token_hash = hash_token(token)
+    result = await session.execute(
+        select(AgentRegistration).where(
+            AgentRegistration.api_token_hash == token_hash,
+            AgentRegistration.revoked_at.is_(None),
+        )
     )
+    agent = result.scalar_one_or_none()
+    if agent is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid bearer token")
+    return agent

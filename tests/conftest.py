@@ -41,9 +41,12 @@ from app.api.deps import get_current_user  # noqa: E402 — must follow env setu
 from app.db import get_session  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import Base, User  # noqa: E402
+from app.security import hash_password  # noqa: E402
 
 
 TEST_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
+TEST_USERNAME = "testuser"
+TEST_PASSWORD = "hunter2"  # noqa: S105 — test fixture
 
 
 def _test_user() -> User:
@@ -51,7 +54,7 @@ def _test_user() -> User:
 
     return User(
         id=TEST_USER_ID,
-        username="testuser",
+        username=TEST_USERNAME,
         email="test@localhost",
         hashed_password="!",
         is_active=True,
@@ -64,6 +67,18 @@ async def async_engine():
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", future=True)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+    async with factory() as session:
+        session.add(
+            User(
+                id=TEST_USER_ID,
+                username=TEST_USERNAME,
+                email="test@localhost",
+                hashed_password=hash_password(TEST_PASSWORD),
+                is_active=True,
+            )
+        )
+        await session.commit()
     try:
         yield engine
     finally:
@@ -98,3 +113,24 @@ async def client(async_engine) -> AsyncIterator[AsyncClient]:
         yield ac
 
     app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture
+async def registered_agent(client) -> dict:
+    """Register a fresh agent against the seeded test user; return creds."""
+    resp = await client.post(
+        "/api/v1/agent/register",
+        json={
+            "username": TEST_USERNAME,
+            "password": TEST_PASSWORD,
+            "machine_name": "test-pc",
+            "platform": "linux",
+        },
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    return {
+        "agent_id": body["agent_id"],
+        "api_token": body["api_token"],
+        "auth_header": {"Authorization": f"Bearer {body['api_token']}"},
+    }
