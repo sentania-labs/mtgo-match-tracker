@@ -158,7 +158,16 @@ All tables holding user data carry a `user_id` FK to the `users` table.
 
 Key endpoint groups: `/matches`, `/games`, `/decklists`, `/archetypes`, `/drafts`, `/stats/*`, `/agent/*`
 
-Agent endpoints (`/agent/*`) require Bearer token auth (token issued at agent registration).
+Agent endpoints:
+- `POST /agent/register` — user/pass auth; creates an `AgentRegistration` row, returns a cleartext bearer token once (hashed with SHA-256 at rest).
+- `POST /agent/heartbeat` — bearer auth; bumps `last_seen`. MVP liveness signal.
+- `POST /agent/upload` — bearer auth; bumps `last_seen`, acknowledges payload with 202. Match persistence is post-MVP.
+
+All other `/agent/*` routes require Bearer auth via `get_current_agent`, which looks the SHA-256-hashed token up in `agent_registrations` and rejects missing/unknown/revoked tokens. User passwords use bcrypt (via the `bcrypt` library directly — passlib is unmaintained and incompatible with bcrypt ≥ 4.1).
+
+### Bootstrap
+
+When the `users` table is empty on app startup, the lifespan hook seeds one user from `ADMIN_USERNAME` / `ADMIN_PASSWORD` / `ADMIN_EMAIL` env vars. No-op once the table has rows. First-boot-only mechanism — there is no signup endpoint in MVP.
 
 ## Key Analysis Features
 
