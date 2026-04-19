@@ -374,6 +374,10 @@ The exact `.dat` binary format is not yet reverse-engineered. The parser is a **
 - Falls back to reading MTGO's plaintext `.log` files in the same directory, extracting a minimal match result (winner/loser lines) as a partial `ParsedMatch`
 - Extension point: `parser.py` exports `parse_dat_file(path) -> ParsedMatch | None` and `parse_text_log(path) -> ParsedMatch | None`; `watcher.py` calls both and takes the richer result
 
+**Research brief (2026-04-18):** `docs/research/2026-04-18-mtgo-log-structure.md` — initial format research from public sources.
+
+**Phase 2.5 plan (2026-04-18):** `docs/plans/2026-04-18-phase-2.5-parser-and-quarantine.md` — actionable plan refined against 358 real `.dat` samples. Drops the BigPeet bridge (direct text extraction works), corrects the brief's win/loss claims, adds the dead-letter quarantine workflow (`unparsed_logs` table + `/agent/upload-unparsed` endpoint) so undocumented format edge cases get captured for parser improvement instead of silently dropped.
+
 ### Self-update flow
 
 1. On startup and every `check_interval_hours`, fetch `https://api.github.com/repos/sentania-labs/mtgo-match-tracker/releases/latest` (auth header if `github_token` set).

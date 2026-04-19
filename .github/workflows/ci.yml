@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   lint:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'sentania-labs'
     runs-on: [self-hosted, linux, generic]
     steps:
       - uses: actions/checkout@v4
@@ -26,6 +27,7 @@ jobs:
         run: ruff check app/ tests/ agent/
 
   typecheck:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'sentania-labs'
     runs-on: [self-hosted, linux, generic]
     steps:
       - uses: actions/checkout@v4
@@ -44,6 +46,7 @@ jobs:
         run: mypy app/ --ignore-missing-imports --explicit-package-bases
 
   test:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'sentania-labs'
     runs-on: [self-hosted, linux, generic]
     env:
       DATABASE_URL: sqlite+aiosqlite:///:memory:

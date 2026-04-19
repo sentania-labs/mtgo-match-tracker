@@ -12,6 +12,7 @@ permissions:
 
 jobs:
   build-app:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'sentania-labs'
     runs-on: [self-hosted, linux, docker]
     permissions:
       contents: read
@@ -76,6 +77,7 @@ jobs:
         run: docker rmi tamiyo-app:pr || true
 
   build-caddy:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'sentania-labs'
     runs-on: [self-hosted, linux, docker]
     permissions:
       contents: read
@@ -102,7 +104,9 @@ jobs:
 
   compose-smoke-test:
     needs: [build-app, build-caddy]
-    if: github.event_name == 'pull_request'
+    if: >-
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'sentania-labs')
+      && github.event_name == 'pull_request'
     runs-on: [self-hosted, linux, docker]
     steps:
       - uses: actions/checkout@v4

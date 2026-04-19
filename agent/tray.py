@@ -20,7 +20,7 @@ from typing import Any
 from agent.config import AppConfig, get_config_path
 from agent.parser import ParsedMatch
 from agent.sender import AgentSender
-from agent.updater import check_for_update
+from agent.updater import apply_update, check_for_update, download_and_verify
 from agent.watcher import MTGOWatcher
 
 try:
@@ -81,6 +81,9 @@ class TrayApp:
         self._heartbeat_thread: threading.Thread | None = None
         self._update_thread: threading.Thread | None = None
         self._last_heartbeat_ok: bool | None = None
+        self._staged_update: Path | None = None
+        self._staged_update_tag: str | None = None
+        self._staged_lock = threading.Lock()
 
     # ---- lifecycle -----------------------------------------------------
 
@@ -170,13 +173,10 @@ class TrayApp:
     def _set_heartbeat_result(self, ok: bool) -> None:
         changed = self._last_heartbeat_ok != ok
         self._last_heartbeat_ok = ok
-        if changed and self._icon is not None:
-            try:
-                self._icon.update_menu()
-            except Exception:
-                logger.exception("Failed to refresh tray menu")
+        if changed:
+            self._refresh_menu()
 
-    # ---- update loop (check-only, MVP) ---------------------------------
+    # ---- update loop ---------------------------------------------------
 
     def _start_update_loop(self) -> None:
         interval_hours = max(1, int(self._config.updates.check_interval_hours))
@@ -193,7 +193,7 @@ class TrayApp:
         self._update_thread = thread
 
     def _check_updates_once(self) -> None:
-        """MVP: check only. Download + restart flow deferred."""
+        """Poll GitHub, download + verify if newer, stage for restart."""
         try:
             result = asyncio.run(check_for_update(self._config))
         except Exception:
@@ -201,8 +201,39 @@ class TrayApp:
             return
         if result is None:
             return
-        tag, _url = result
-        self._notify(f"Update {tag} available — grab the exe from GitHub Releases")
+        tag, url = result
+
+        with self._staged_lock:
+            if self._staged_update_tag == tag and self._staged_update is not None:
+                return
+
+        token = self._config.updates.github_token or None
+        try:
+            staged = asyncio.run(download_and_verify(url, token))
+        except Exception:
+            logger.exception("Update download raised")
+            staged = None
+
+        if staged is None:
+            self._notify(f"Update {tag} download failed — check log.")
+            return
+
+        with self._staged_lock:
+            self._staged_update = staged
+            self._staged_update_tag = tag
+        self._refresh_menu()
+        self._notify(f"Update {tag} downloaded — click 'Restart to Update' to apply.")
+
+    def _has_staged_update(self) -> bool:
+        return self._staged_update is not None
+
+    def _refresh_menu(self) -> None:
+        if self._icon is None:
+            return
+        try:
+            self._icon.update_menu()
+        except Exception:
+            logger.exception("Failed to refresh tray menu")
 
     # ---- menu handlers -------------------------------------------------
 
@@ -220,6 +251,11 @@ class TrayApp:
             ),
             MenuItem("Open Dashboard", self._on_open_dashboard),
             Menu.SEPARATOR,
+            MenuItem(
+                "Restart to Update",
+                self._on_restart_to_update,
+                visible=lambda item: self._has_staged_update(),
+            ),
             MenuItem("Check for Updates", self._on_check_updates),
             MenuItem("Settings…", self._on_settings),
             MenuItem("Open Log", self._on_open_log),
@@ -230,17 +266,32 @@ class TrayApp:
     def _on_pause_resume(self, icon: Any, item: Any) -> None:
         self._paused = not self._paused
         logger.info("Monitoring %s", "paused" if self._paused else "resumed")
-        if self._icon is not None:
-            try:
-                self._icon.update_menu()
-            except Exception:
-                logger.exception("Failed to refresh tray menu")
+        self._refresh_menu()
 
     def _on_open_dashboard(self, icon: Any, item: Any) -> None:
         webbrowser.open(self._config.server.url)
 
     def _on_check_updates(self, icon: Any, item: Any) -> None:
         threading.Thread(target=self._check_updates_once, daemon=True).start()
+
+    def _on_restart_to_update(self, icon: Any, item: Any) -> None:
+        with self._staged_lock:
+            staged = self._staged_update
+        if staged is None:
+            return
+        logger.info("Applying staged update: %s", staged)
+        try:
+            apply_update(staged)
+        except SystemExit:
+            raise
+        except Exception:
+            logger.exception("apply_update failed")
+            return
+        # Only reached on non-win32 where apply_update is a no-op.
+        with self._staged_lock:
+            self._staged_update = None
+            self._staged_update_tag = None
+        self._refresh_menu()
 
     def _on_settings(self, icon: Any, item: Any) -> None:
         self._open_in_editor(get_config_path())
