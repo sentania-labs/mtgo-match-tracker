@@ -81,17 +81,21 @@ def _prompt_registration(config: AppConfig) -> AppConfig:
         config.server.url = server_url
         config.agent.machine_name = machine_name
 
-        sender = AgentSender(config)
+        async def _register_once() -> tuple[str, str]:
+            sender = AgentSender(config)
+            try:
+                return await sender.register(
+                    username, password, machine_name, platform="windows"
+                )
+            finally:
+                await sender.close()
+
         try:
-            agent_id, api_token = asyncio.run(
-                sender.register(username, password, machine_name, platform="windows")
-            )
+            agent_id, api_token = asyncio.run(_register_once())
         except Exception as exc:
             logger.exception("Registration failed")
             messagebox.showerror("Registration failed", str(exc), parent=root)
             return config
-        finally:
-            asyncio.run(sender.close())
 
         config.agent.agent_id = str(agent_id)
         config.agent.api_token = api_token
