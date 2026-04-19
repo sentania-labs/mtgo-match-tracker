@@ -79,7 +79,7 @@ jobs:
       - name: Build + push tamiyo-caddy
         uses: docker/build-push-action@v5
         with:
-          context: services/caddy
+          context: .
           file: services/caddy/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
