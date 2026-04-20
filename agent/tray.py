@@ -95,7 +95,7 @@ class TrayApp:
         assets_dir = Path(__file__).parent / "assets"
         icon_image = _load_icon(assets_dir)
         menu = self._build_menu()
-        self._icon = pystray.Icon("mtgo-match-tracker", icon_image, "MTGO Match Tracker", menu)
+        self._icon = pystray.Icon("manalog", icon_image, "Manalog", menu)
 
         self._start_watcher()
         self._start_heartbeat_loop()
@@ -330,6 +330,6 @@ class TrayApp:
         logger.info("TRAY: %s", message)
         if self._icon is not None and hasattr(self._icon, "notify"):
             try:
-                self._icon.notify(message, "MTGO Match Tracker")
+                self._icon.notify(message, "Manalog")
             except Exception:
                 logger.exception("Failed to show tray notification")
