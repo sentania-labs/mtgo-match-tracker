@@ -126,6 +126,17 @@ jobs:
       - name: Generate checksum
         run: certutil -hashfile dist\MTGOMatchTracker.exe SHA256 > dist\MTGOMatchTracker.exe.sha256
 
+      - name: Rename exe for WiX (MTGOMatchTracker.exe -> Manalog.exe)
+        run: Copy-Item dist\MTGOMatchTracker.exe dist\Manalog.exe
+        shell: pwsh
+
+      - name: Install WiX v4
+        run: dotnet tool install --global wix
+
+      - name: Build MSI
+        run: .\installer\build.ps1 -SourceDir dist -OutputDir installer\dist
+        shell: pwsh
+
       - name: Upload artifact for release job
         uses: actions/upload-artifact@v4
         with:
@@ -133,6 +144,8 @@ jobs:
           path: |
             dist/MTGOMatchTracker.exe
             dist/MTGOMatchTracker.exe.sha256
+            installer/dist/Manalog.msi
+            installer/dist/Manalog.msi.sha256
           retention-days: 1
 
   create-release:
@@ -149,7 +162,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: windows-agent-release
-          path: dist/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -159,3 +171,5 @@ jobs:
           files: |
             dist/MTGOMatchTracker.exe
             dist/MTGOMatchTracker.exe.sha256
+            installer/dist/Manalog.msi
+            installer/dist/Manalog.msi.sha256
