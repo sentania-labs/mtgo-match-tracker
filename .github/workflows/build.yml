@@ -115,7 +115,7 @@ jobs:
         run: docker build --platform linux/amd64 -t manalog-app:smoke -f Dockerfile .
 
       - name: Build caddy image (smoke tag)
-        run: docker build --platform linux/amd64 -t manalog-caddy:smoke -f services/caddy/Dockerfile services/caddy
+        run: docker build --platform linux/amd64 -t manalog-caddy:smoke -f services/caddy/Dockerfile .
 
       - name: Seed .env
         run: |
