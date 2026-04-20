@@ -1,5 +1,5 @@
 #!/bin/sh
-# Tamiyo — Caddy entrypoint.
+# Manalog — Caddy entrypoint.
 #
 # Reads TLS_MODE / TLS_DOMAIN from the environment, generates an active
 # Caddyfile, and execs Caddy. The Caddyfile.template shipped in the image
@@ -25,7 +25,7 @@ cert_path = os.environ.get("TLS_CERT_PATH", "/certs/cert.pem")
 key_path = os.environ.get("TLS_KEY_PATH", "/certs/key.pem")
 
 # Shared snippet: reverse proxy to the FastAPI app + common hardening.
-snippet = """(tamiyo) {
+snippet = """(manalog) {
 \theader {
 \t\tX-Frame-Options DENY
 \t\tX-Content-Type-Options nosniff
@@ -39,9 +39,9 @@ snippet = """(tamiyo) {
 if mode == "auto":
     if not domain:
         print("[caddy-entrypoint] TLS_MODE=auto but TLS_DOMAIN is empty — falling back to HTTP", file=sys.stderr)
-        body = f"{snippet}\n:80 {{\n\timport tamiyo\n}}\n"
+        body = f"{snippet}\n:80 {{\n\timport manalog\n}}\n"
     else:
-        body = f"{snippet}\n{domain} {{\n\timport tamiyo\n}}\n"
+        body = f"{snippet}\n{domain} {{\n\timport manalog\n}}\n"
 elif mode == "manual":
     cert_ok = pathlib.Path(cert_path).exists()
     key_ok = pathlib.Path(key_path).exists()
@@ -50,7 +50,7 @@ elif mode == "manual":
         body = f"""{snippet}
 {host} {{
 \ttls {cert_path} {key_path}
-\timport tamiyo
+\timport manalog
 }}
 
 :80 {{
@@ -64,11 +64,11 @@ elif mode == "manual":
         if not key_ok:
             missing.append(f"key ({key_path})")
         print(f"[caddy-entrypoint] TLS_MODE=manual but missing: {', '.join(missing)} — falling back to HTTP", file=sys.stderr)
-        body = f"{snippet}\n:80 {{\n\timport tamiyo\n}}\n"
+        body = f"{snippet}\n:80 {{\n\timport manalog\n}}\n"
 else:
     if mode not in ("off", ""):
         print(f"[caddy-entrypoint] Unknown TLS_MODE '{mode}' — defaulting to HTTP", file=sys.stderr)
-    body = f"{snippet}\n:80 {{\n\timport tamiyo\n}}\n"
+    body = f"{snippet}\n:80 {{\n\timport manalog\n}}\n"
 
 pathlib.Path(caddyfile_path).write_text(body)
 print(f"[caddy-entrypoint] Generated Caddyfile (mode={mode})", file=sys.stderr)

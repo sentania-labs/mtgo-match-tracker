@@ -15,6 +15,7 @@ COPY requirements.txt /app/requirements.txt
 RUN pip install -r /app/requirements.txt
 
 COPY app /app/app
+COPY agent /app/agent
 COPY alembic /app/alembic
 COPY alembic.ini /app/alembic.ini
 COPY entrypoint.sh /app/entrypoint.sh

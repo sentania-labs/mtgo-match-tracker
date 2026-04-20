@@ -1,4 +1,4 @@
-# Tamiyo — deploy guide
+# Manalog — deploy guide
 
 MVP stack: Caddy + FastAPI + Postgres + a Windows tray agent that
 heartbeats back. No match ingest yet; this deploy validates the wire.
@@ -39,8 +39,8 @@ exists — bootstrap is a no-op on subsequent startups.
 ## 2. Drop the cert (manual TLS only)
 
 ```sh
-docker volume create tamiyo-certs
-docker run --rm -v tamiyo-certs:/certs -v "$PWD":/in alpine \
+docker volume create manalog-certs
+docker run --rm -v manalog-certs:/certs -v "$PWD":/in alpine \
   sh -c 'cp /in/cert.pem /certs/cert.pem && cp /in/key.pem /certs/key.pem'
 ```
 
@@ -130,3 +130,26 @@ docker compose up -d
 
 Agent updates are manual for MVP: download the new `.exe` from the
 Release and replace the installed copy.
+
+## Upgrading from v0.2.0 (tamiyo-named volumes)
+
+v0.3.0+ renamed the Docker project and named volumes from `tamiyo-*`
+to `manalog-*`. Fresh deployments pick up the new names automatically
+— no action needed. Operators upgrading an existing v0.2.0 deployment
+in place must copy the volume contents before `docker compose up` on
+the new release, or the stack will start against empty volumes.
+
+```sh
+docker volume create manalog-db
+docker run --rm -v tamiyo-db:/src -v manalog-db:/dst alpine cp -a /src/. /dst/
+# repeat for certs, caddy-data, caddy-config
+docker volume create manalog-certs
+docker run --rm -v tamiyo-certs:/src -v manalog-certs:/dst alpine cp -a /src/. /dst/
+docker volume create manalog-caddy-data
+docker run --rm -v tamiyo-caddy-data:/src -v manalog-caddy-data:/dst alpine cp -a /src/. /dst/
+docker volume create manalog-caddy-config
+docker run --rm -v tamiyo-caddy-config:/src -v manalog-caddy-config:/dst alpine cp -a /src/. /dst/
+```
+
+Once verified, the old `tamiyo-*` volumes can be removed with
+`docker volume rm`.

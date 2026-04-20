@@ -115,6 +115,15 @@ async def client(async_engine) -> AsyncIterator[AsyncClient]:
     app.dependency_overrides.clear()
 
 
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def _dispose_app_engine() -> AsyncIterator[None]:
+    """Dispose the module-level app.db engine after the session so
+    connection-pool threads don't block Python's exit."""
+    yield
+    import app.db as _db
+    await _db.engine.dispose()
+
+
 @pytest_asyncio.fixture
 async def registered_agent(client) -> dict:
     """Register a fresh agent against the seeded test user; return creds."""

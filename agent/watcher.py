@@ -6,6 +6,9 @@ debounce skips files currently being written.
 
 The watchdog Observer runs in its own thread — the tray event loop
 stays responsive.
+
+watchdog is guarded so this module stays importable on Linux CI where
+the package is not installed (app image only; agent runtime installs it).
 """
 from __future__ import annotations
 
@@ -16,8 +19,15 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from watchdog.events import FileSystemEvent, FileSystemEventHandler
-from watchdog.observers import Observer
+try:
+    from watchdog.events import FileSystemEvent, FileSystemEventHandler
+    from watchdog.observers import Observer
+    _WATCHDOG_AVAILABLE = True
+except ImportError:  # pragma: no cover — watchdog absent on CI app image
+    FileSystemEvent = Any  # type: ignore[assignment, misc]
+    FileSystemEventHandler = object  # type: ignore[assignment, misc]
+    Observer = None  # type: ignore[assignment, misc]
+    _WATCHDOG_AVAILABLE = False
 
 from agent.parser import ParsedMatch, parse_file
 
