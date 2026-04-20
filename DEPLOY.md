@@ -93,6 +93,48 @@ docker compose exec db psql -U mtgo mtgo_tracker -c \
 `last_seen` should advance roughly every 60s (configurable via the
 `[heartbeat]` section in the agent's `config.toml`).
 
+## Installing the Windows agent
+
+The Manalog Windows agent monitors your MTGO log directory and uploads match
+results to the server automatically.
+
+### Download
+
+Download `Manalog.msi` (and `Manalog.msi.sha256`) from the [latest GitHub Release](https://github.com/sentania-labs/manalog/releases/latest).
+
+Verify the checksum before installing:
+```powershell
+(Get-FileHash Manalog.msi -Algorithm SHA256).Hash.ToLower()
+# Compare against the contents of Manalog.msi.sha256
+```
+
+### Install
+
+Double-click `Manalog.msi`. The installer:
+- Installs `Manalog.exe` to `C:\Program Files\Manalog\`
+- Creates `%PROGRAMDATA%\Manalog\` for config and logs
+- Adds a Startup folder shortcut so the agent starts at login
+
+**SmartScreen warning (beta):** The MSI is currently unsigned. Click "More info → Run anyway" to proceed. This warning will be resolved when the release is code-signed.
+
+### First launch
+
+On first run, a dialog prompts for your server URL and credentials. Enter
+the URL of your Manalog server (e.g. `https://mtgo.int.sentania.net`) and
+your Manalog username and password. The agent registers itself and stores
+only the bearer token — your password is never saved locally.
+
+### Uninstall
+
+Use Windows Settings → Apps → Manalog → Uninstall, or `msiexec /x Manalog.msi`.
+The `%PROGRAMDATA%\Manalog\` directory (config, logs) is preserved on uninstall.
+
+### Three items awaiting Scott's decision
+
+1. **Code-signing certificate** — unsigned MSI triggers SmartScreen. Acquiring an EV code-signing cert removes the warning for end users. Ballpark cost: ~$300–500/year.
+2. **Service vs. startup shortcut** — the current installer uses a Startup folder shortcut (per CLAUDE.md). If a Windows Service (headless, starts before login) is preferred, the `agent/windows-service-wrapper` branch adds `agent/service.py`; the installer would need a `ServiceInstall` element and elevated privilege grant. Revisit after beta.
+3. **WiX toolchain in CI** — WiX v4 is installed via `dotnet tool install --global wix` on `windows-latest`. If the team prefers a vendored/pinned version, lock with `--version <x.y.z>`.
+
 ## Troubleshooting
 
 - **Healthz returns 503 with `db: unreachable`**: the app can't reach

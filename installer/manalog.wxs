@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+    Name="Manalog"
+    Manufacturer="Sentania Labs"
+    Version="!(bind.fileVersion.ManalogExe)"
+    UpgradeCode="856f107e-016f-40a4-8dbe-e7e59232a773"
+    Scope="perMachine">
+
+    <MajorUpgrade
+      DowngradeErrorMessage="A newer version of Manalog is already installed."
+      Schedule="afterInstallInitialize" />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Install dir -->
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Manalog" />
+    </StandardDirectory>
+
+    <!-- ProgramData scaffold (preserved on uninstall) -->
+    <StandardDirectory Id="CommonAppDataFolder">
+      <Directory Id="PROGRAMDATAFOLDER" Name="Manalog" />
+    </StandardDirectory>
+
+    <!-- Startup shortcut dir -->
+    <StandardDirectory Id="AppDataFolder">
+      <Directory Id="Programs" Name="Programs">
+        <Directory Id="Startup" Name="Startup" />
+      </Directory>
+    </StandardDirectory>
+
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+      <Component Id="ManalogExe" Guid="efbd6886-dd05-4b27-9771-b0bdf60e2e76">
+        <File Id="ManalogExe" Source="$(var.SourceDir)\Manalog.exe" KeyPath="yes" />
+        <RegistryValue
+          Root="HKLM"
+          Key="SOFTWARE\Manalog"
+          Name="InstallDir"
+          Type="string"
+          Value="[INSTALLFOLDER]" />
+        <Shortcut
+          Id="StartupShortcut"
+          Directory="Startup"
+          Name="Manalog"
+          Target="[INSTALLFOLDER]Manalog.exe"
+          WorkingDirectory="INSTALLFOLDER" />
+      </Component>
+      <Component Id="ProgramDataDir" Directory="PROGRAMDATAFOLDER" Guid="a197b1e6-f535-443c-939a-6141acb81968">
+        <CreateFolder />
+        <!-- Preserve on uninstall: no RemoveFolder element -->
+      </Component>
+    </ComponentGroup>
+
+    <Feature Id="ProductFeature" Title="Manalog" Level="1">
+      <ComponentGroupRef Id="ProductComponents" />
+    </Feature>
+  </Package>
+</Wix>

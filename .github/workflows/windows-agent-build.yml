@@ -34,3 +34,36 @@ jobs:
           name: windows-agent
           path: dist/MTGOMatchTracker.exe
           retention-days: 30
+
+  build-msi:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'sentania-labs'
+    needs: build-windows-agent
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download agent artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-agent
+          path: dist/
+
+      - name: Rename exe for WiX (MTGOMatchTracker.exe -> Manalog.exe)
+        run: Copy-Item dist\MTGOMatchTracker.exe dist\Manalog.exe
+        shell: pwsh
+
+      - name: Install WiX v5 (pinned — v7 requires OSMF EULA)
+        run: dotnet tool install --global wix --version 5.0.2
+
+      - name: Build MSI
+        run: .\installer\build.ps1 -SourceDir dist -OutputDir installer\dist
+        shell: pwsh
+
+      - name: Upload MSI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-agent-msi
+          path: |
+            installer/dist/Manalog.msi
+            installer/dist/Manalog.msi.sha256
+          retention-days: 30

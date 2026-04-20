@@ -55,3 +55,9 @@ services/caddy/Caddyfile
 *.spec
 dist/
 build/
+
+# Local PKA comm zone (not shared)
+.pka/
+
+# Claude Code session files (local only)
+.claude/

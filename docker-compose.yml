@@ -32,6 +32,7 @@ services:
       retries: 10
 
   app:
+    image: ${MANALOG_APP_IMAGE:-manalog-app:latest}
     build:
       context: .
       dockerfile: Dockerfile
@@ -52,6 +53,7 @@ services:
         condition: service_healthy
 
   caddy:
+    image: ${MANALOG_CADDY_IMAGE:-manalog-caddy:latest}
     build:
       context: .
       dockerfile: services/caddy/Dockerfile

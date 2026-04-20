@@ -137,18 +137,25 @@ jobs:
 
       - name: Seed .env
         run: |
+          # HTTP_PORT/HTTPS_PORT overridden to high ports so smoke runs
+          # don't collide with anything bound to 80/443 on the runner.
           cat > .env <<'EOF'
           TLS_MODE=off
           DATABASE_URL=postgresql+asyncpg://mtgo:test@db/mtgo_tracker
           DB_PASSWORD=test
           SECRET_KEY=test-secret-key-32chars-minimum
+          HTTP_PORT=18080
+          HTTPS_PORT=18443
           EOF
+
+      - name: Pre-cleanup (remove any stale stack from prior runs)
+        run: docker compose down -v --remove-orphans 2>/dev/null || true
 
       - name: Bring up stack
         run: |
           export MANALOG_APP_IMAGE=manalog-app:smoke
           export MANALOG_CADDY_IMAGE=manalog-caddy:smoke
-          docker compose up -d
+          docker compose up -d --no-build
 
       - name: Poll /healthz
         run: |
