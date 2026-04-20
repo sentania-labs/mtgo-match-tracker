@@ -43,7 +43,7 @@ Thumbs.db
 # Alembic
 alembic/versions/__pycache__/
 
-# TLS certs (lab deployments drop these into the tamiyo-certs volume;
+# TLS certs (lab deployments drop these into the manalog-certs volume;
 # they should never live in the repo)
 certs/
 

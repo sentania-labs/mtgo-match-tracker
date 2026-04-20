@@ -1,4 +1,4 @@
-"""FastAPI entry point for Tamiyo — MTGO Match Tracker."""
+"""FastAPI entry point for Manalog — MTGO Match Tracker."""
 from __future__ import annotations
 
 import logging
@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Tamiyo — MTGO Match Tracker",
+    title="Manalog — MTGO Match Tracker",
     version="0.1.0",
     lifespan=lifespan,
     docs_url="/docs",

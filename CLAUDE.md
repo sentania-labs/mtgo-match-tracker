@@ -1,4 +1,4 @@
-# CLAUDE.md — MTGO Match Tracker (Tamiyo)
+# CLAUDE.md — MTGO Match Tracker (Manalog)
 
 Track Magic: The Gathering Online match results, analyze matchups, and improve your game with data.
 
@@ -41,7 +41,7 @@ TLS terminates at Caddy, not uvicorn directly. Three deployment modes:
 
 ### Internal CA (lab deployment)
 
-Use the lab's internal CA to issue a cert for the tracker's hostname (e.g., `mtgo.int.sentania.net`). Drop the cert/key pair into a Docker named volume (e.g., `tamiyo-certs/`) and point Caddy's manual config at `/certs/cert.pem` and `/certs/key.pem`. Windows agents that need to trust the server must have the internal CA root installed in the Windows trust store (or explicitly trusted in httpx).
+Use the lab's internal CA to issue a cert for the tracker's hostname (e.g., `mtgo.int.sentania.net`). Drop the cert/key pair into a Docker named volume (e.g., `manalog-certs/`) and point Caddy's manual config at `/certs/cert.pem` and `/certs/key.pem`. Windows agents that need to trust the server must have the internal CA root installed in the Windows trust store (or explicitly trusted in httpx).
 
 Navani (sentania-lab-toolkit) does not yet document internal CA issuance procedures — that's a gap to fill separately. When cert infra exists, reference it here.
 
@@ -262,7 +262,7 @@ No Jetson/ARM runner needed (no GPU workloads). Multi-arch builds (amd64 + arm64
 - main-push: multi-arch build only (warms GHA cache; tests already passed on the PR)
 
 **`release.yml`** — runs on `v*.*.*` tag push:
-- `release-app` / `release-caddy` jobs build and push multi-arch images to GHCR (`ghcr.io/sentania-labs/tamiyo-*`); tags: semver + latest
+- `release-app` / `release-caddy` jobs build and push multi-arch images to GHCR (`ghcr.io/sentania-labs/manalog-*`); tags: semver + latest
 - `build-agent-release` job builds the Windows agent exe on `windows-latest` and uploads it as a workflow artifact
 - `create-release` job (needs all three above) downloads the Windows artifact and creates the GitHub Release with auto-generated notes + exe + sha256 attached atomically
 

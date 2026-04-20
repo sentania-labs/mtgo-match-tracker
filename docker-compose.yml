@@ -1,6 +1,6 @@
-name: tamiyo
+name: manalog
 
-# MTGO Match Tracker (Tamiyo) — Docker Compose stack.
+# MTGO Match Tracker (Manalog) — Docker Compose stack.
 #
 # Services:
 #   db     — PostgreSQL 16 (internal only)
@@ -24,7 +24,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
       POSTGRES_DB: mtgo_tracker
     volumes:
-      - tamiyo-db:/var/lib/postgresql/data
+      - manalog-db:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U mtgo -d mtgo_tracker"]
       interval: 5s
@@ -64,18 +64,18 @@ services:
       TLS_DOMAIN: ${TLS_DOMAIN:-}
       HTTPS_PORT: ${HTTPS_PORT:-443}
     volumes:
-      - tamiyo-certs:/certs:ro          # manual-mode cert + key live here
+      - manalog-certs:/certs:ro          # manual-mode cert + key live here
       - caddy-data:/data                # Let's Encrypt ACME state
       - caddy-config:/config            # Caddy's own runtime config dir
     depends_on:
       - app
 
 volumes:
-  tamiyo-db:
-    name: tamiyo-db
-  tamiyo-certs:
-    name: tamiyo-certs
+  manalog-db:
+    name: manalog-db
+  manalog-certs:
+    name: manalog-certs
   caddy-data:
-    name: tamiyo-caddy-data
+    name: manalog-caddy-data
   caddy-config:
-    name: tamiyo-caddy-config
+    name: manalog-caddy-config

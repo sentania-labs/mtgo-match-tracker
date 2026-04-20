@@ -34,7 +34,7 @@ jobs:
           file: Dockerfile
           platforms: linux/amd64,linux/arm64
           push: false
-          tags: tamiyo-app:ci
+          tags: manalog-app:ci
           cache-from: type=gha,scope=app
           cache-to: type=gha,mode=max,scope=app
 
@@ -43,7 +43,7 @@ jobs:
         run: |
           docker build \
             --platform linux/amd64 \
-            -t tamiyo-app:pr \
+            -t manalog-app:pr \
             -f Dockerfile \
             .
 
@@ -51,7 +51,7 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: tamiyo-app:pr
+          image-ref: manalog-app:pr
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: "1"
@@ -63,7 +63,7 @@ jobs:
           # Use docker create + cp, NOT bind mounts — runner is DinD.
           CID=$(docker create \
             -e DATABASE_URL=sqlite+aiosqlite:///:memory: \
-            tamiyo-app:pr \
+            manalog-app:pr \
             sh -c "pip install --no-cache-dir pytest pytest-asyncio pytest-cov httpx aiosqlite && pytest tests/ -v --cov=app --cov-fail-under=70")
           docker cp tests/. "$CID:/app/tests/"
           docker cp pyproject.toml "$CID:/app/pyproject.toml" 2>/dev/null || true
@@ -74,7 +74,7 @@ jobs:
 
       - name: Cleanup PR image
         if: always() && github.event_name == 'pull_request'
-        run: docker rmi tamiyo-app:pr || true
+        run: docker rmi manalog-app:pr || true
 
   build-caddy:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'sentania-labs'
@@ -98,7 +98,7 @@ jobs:
           file: services/caddy/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: false
-          tags: tamiyo-caddy:ci
+          tags: manalog-caddy:ci
           cache-from: type=gha,scope=caddy
           cache-to: type=gha,mode=max,scope=caddy
 
@@ -112,10 +112,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build app image (smoke tag)
-        run: docker build --platform linux/amd64 -t tamiyo-app:smoke -f Dockerfile .
+        run: docker build --platform linux/amd64 -t manalog-app:smoke -f Dockerfile .
 
       - name: Build caddy image (smoke tag)
-        run: docker build --platform linux/amd64 -t tamiyo-caddy:smoke -f services/caddy/Dockerfile services/caddy
+        run: docker build --platform linux/amd64 -t manalog-caddy:smoke -f services/caddy/Dockerfile services/caddy
 
       - name: Seed .env
         run: |
@@ -128,8 +128,8 @@ jobs:
 
       - name: Bring up stack
         run: |
-          export TAMIYO_APP_IMAGE=tamiyo-app:smoke
-          export TAMIYO_CADDY_IMAGE=tamiyo-caddy:smoke
+          export MANALOG_APP_IMAGE=manalog-app:smoke
+          export MANALOG_CADDY_IMAGE=manalog-caddy:smoke
           docker compose up -d
 
       - name: Poll /healthz
@@ -151,4 +151,4 @@ jobs:
 
       - name: Cleanup smoke images
         if: always()
-        run: docker rmi tamiyo-app:smoke tamiyo-caddy:smoke || true
+        run: docker rmi manalog-app:smoke manalog-caddy:smoke || true

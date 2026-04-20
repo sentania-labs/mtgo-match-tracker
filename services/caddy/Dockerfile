@@ -1,4 +1,4 @@
-# Tamiyo — Caddy reverse proxy image.
+# Manalog — Caddy reverse proxy image.
 # Pattern borrowed from ScarGuard: caddy:2-alpine + python3 for parsing
 # env-driven TLS settings into a generated Caddyfile.
 FROM caddy:2-alpine

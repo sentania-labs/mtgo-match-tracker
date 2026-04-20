@@ -34,7 +34,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build + push tamiyo-app
+      - name: Build + push manalog-app
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -42,8 +42,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/sentania-labs/tamiyo-app:${{ steps.semver.outputs.version }}
-            ghcr.io/sentania-labs/tamiyo-app:latest
+            ghcr.io/sentania-labs/manalog-app:${{ steps.semver.outputs.version }}
+            ghcr.io/sentania-labs/manalog-app:latest
           cache-from: type=gha,scope=app
           cache-to: type=gha,mode=max,scope=app
 
@@ -76,7 +76,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build + push tamiyo-caddy
+      - name: Build + push manalog-caddy
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -84,8 +84,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/sentania-labs/tamiyo-caddy:${{ steps.semver.outputs.version }}
-            ghcr.io/sentania-labs/tamiyo-caddy:latest
+            ghcr.io/sentania-labs/manalog-caddy:${{ steps.semver.outputs.version }}
+            ghcr.io/sentania-labs/manalog-caddy:latest
           cache-from: type=gha,scope=caddy
           cache-to: type=gha,mode=max,scope=caddy
 
