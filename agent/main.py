@@ -6,6 +6,7 @@ pystray's event loop.
 """
 from __future__ import annotations
 
+import argparse
 import asyncio
 import logging
 import socket
@@ -111,6 +112,19 @@ def _prompt_registration(config: AppConfig) -> AppConfig:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Manalog agent")
+    parser.add_argument(
+        "--service",
+        action="store_true",
+        help="Run as Windows service (headless)",
+    )
+    args, _ = parser.parse_known_args()
+
+    if args.service:
+        from agent.service import run_service
+        run_service()
+        return
+
     log_file = _default_log_file()
     _configure_logging(log_file)
     logger.info("Starting MTGO Match Tracker agent")
