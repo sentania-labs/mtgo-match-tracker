@@ -10,8 +10,11 @@ import argparse
 import asyncio
 import logging
 import socket
+import ssl
 import sys
 from pathlib import Path
+
+import httpx
 
 from agent.config import AppConfig, get_config_path, load_config, save_config
 from agent.instance_lock import InstanceLock
@@ -21,6 +24,68 @@ from agent.tray import TrayApp
 
 
 logger = logging.getLogger(__name__)
+
+
+DEFAULT_SERVER_HOSTNAME = "manalog.sentania.net"
+
+
+def _strip_scheme(url: str) -> str:
+    for prefix in ("https://", "http://"):
+        if url.startswith(prefix):
+            return url[len(prefix):]
+    return url
+
+
+def _normalize_server_url(value: str) -> str:
+    value = value.strip()
+    if not value:
+        return value
+    if value.startswith(("http://", "https://")):
+        return value
+    return f"https://{value}"
+
+
+def _is_ssl_error(exc: BaseException) -> bool:
+    cur: BaseException | None = exc
+    seen: set[int] = set()
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        if isinstance(cur, ssl.SSLError):
+            return True
+        cur = cur.__cause__ or cur.__context__
+    return False
+
+
+def _friendly_registration_error(exc: BaseException) -> str:
+    if isinstance(exc, httpx.HTTPStatusError):
+        code = exc.response.status_code
+        if code == 401:
+            return "Invalid username or password."
+        if code == 403:
+            return "Account not authorized. Contact the server administrator."
+        if code == 404:
+            return "Registration endpoint not found. Check the server URL."
+        if 500 <= code < 600:
+            return f"Server error (HTTP {code}). Try again later."
+        return f"Registration failed: HTTP {code}."
+    if isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout)):
+        if _is_ssl_error(exc):
+            return (
+                "TLS/SSL error connecting to server. "
+                "If using a self-signed cert, ask your administrator."
+            )
+        return (
+            "Cannot reach server. "
+            "Check the hostname and your network connection."
+        )
+    if _is_ssl_error(exc):
+        return (
+            "TLS/SSL error connecting to server. "
+            "If using a self-signed cert, ask your administrator."
+        )
+    detail = str(exc).splitlines()[0].strip() if str(exc) else ""
+    short = f"{type(exc).__name__}: {detail}" if detail else type(exc).__name__
+    return f"Registration failed: {short}."
 
 
 def _configure_logging(log_file: Path) -> None:
@@ -61,12 +126,18 @@ def _prompt_registration(config: AppConfig) -> AppConfig:
     root = tk.Tk()
     root.withdraw()
     try:
-        server_url = simpledialog.askstring(
+        initial_host = _strip_scheme(config.server.url).strip()
+        if not initial_host or initial_host == "mtgo.int.sentania.net":
+            initial_host = DEFAULT_SERVER_HOSTNAME
+        server_host = simpledialog.askstring(
             "Manalog",
-            "Server URL:",
-            initialvalue=config.server.url,
+            "Server hostname:",
+            initialvalue=initial_host,
             parent=root,
         )
+        if not server_host:
+            return config
+        server_url = _normalize_server_url(server_host)
         if not server_url:
             return config
         username = simpledialog.askstring(
@@ -97,7 +168,11 @@ def _prompt_registration(config: AppConfig) -> AppConfig:
             agent_id, api_token = asyncio.run(_register_once())
         except Exception as exc:
             logger.exception("Registration failed")
-            messagebox.showerror("Registration failed", str(exc), parent=root)
+            messagebox.showerror(
+                "Registration failed",
+                _friendly_registration_error(exc),
+                parent=root,
+            )
             return config
 
         config.agent.agent_id = str(agent_id)
