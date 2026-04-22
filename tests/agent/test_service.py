@@ -1,8 +1,6 @@
 """Smoke tests for agent/service.py — pywin32 stubbed for CI."""
 import sys
 import types
-import importlib
-import pytest
 
 
 def _stub_win32(monkeypatch):
@@ -37,7 +35,7 @@ def test_import(monkeypatch):
     """service.py is importable and exports expected names."""
     _stub_win32(monkeypatch)
     sys.modules.pop("agent.service", None)
-    from agent.service import ManalogAgentService, HAS_WIN32, run_service
+    from agent.service import ManalogAgentService, run_service
     assert ManalogAgentService._svc_name_ == "ManalogAgent"
     assert ManalogAgentService._svc_display_name_ == "Manalog Agent"
     assert callable(run_service)
@@ -47,7 +45,7 @@ def test_service_class_instantiation(monkeypatch):
     """ManalogAgentService can be instantiated with stub args."""
     _stub_win32(monkeypatch)
     sys.modules.pop("agent.service", None)
-    from agent.service import ManalogAgentService, HAS_WIN32
+    from agent.service import ManalogAgentService
     svc = ManalogAgentService.__new__(ManalogAgentService)
     ManalogAgentService.__init__(svc, [])
     assert hasattr(svc, "_running")

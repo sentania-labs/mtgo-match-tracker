@@ -317,7 +317,15 @@ class RawShipper:
                     body = resp.json()
                 except ValueError:
                     pass
-                upload_id = body.get("upload_id") if isinstance(body, dict) else None
+                upload_id = None
+                if isinstance(body, dict):
+                    upload_id = body.get("upload_id") or body.get("id")
+                if upload_id is not None:
+                    logger.info(
+                        "raw_shipper: uploaded %s (upload_id=%s)", path.name, upload_id
+                    )
+                else:
+                    logger.info("raw_shipper: uploaded %s", path.name)
                 self._record_state(
                     sha,
                     path,

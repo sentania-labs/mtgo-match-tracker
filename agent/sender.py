@@ -67,6 +67,7 @@ class AgentSender:
             logger.info("Heartbeat failed: %s", exc)
             return False
         if resp.is_success:
+            logger.info("sender: heartbeat OK")
             return True
         logger.info("Heartbeat rejected: %s %s", resp.status_code, resp.text[:200])
         return False
