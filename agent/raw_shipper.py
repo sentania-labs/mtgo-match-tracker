@@ -318,9 +318,18 @@ class RawShipper:
                 except ValueError:
                     pass
                 upload_id = None
+                created = None
                 if isinstance(body, dict):
                     upload_id = body.get("upload_id") or body.get("id")
-                if upload_id is not None:
+                    created = body.get("created")
+                if upload_id is not None and created is not None:
+                    logger.info(
+                        "raw_shipper: uploaded %s (upload_id=%s, new=%s)",
+                        path.name,
+                        upload_id,
+                        created,
+                    )
+                elif upload_id is not None:
                     logger.info(
                         "raw_shipper: uploaded %s (upload_id=%s)", path.name, upload_id
                     )

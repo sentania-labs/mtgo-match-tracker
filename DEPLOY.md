@@ -25,22 +25,22 @@ DB_PASSWORD=<something-long-and-random>
 SECRET_KEY=<32+ random bytes; openssl rand -hex 32>
 TLS_MODE=manual                      # or "auto" for Let's Encrypt
 TLS_DOMAIN=mtgo.int.sentania.net     # the hostname you chose
-ADMIN_USERNAME=scott
-ADMIN_PASSWORD=<pick a password>
-ADMIN_EMAIL=scott@sentania.net
+MANALOG_ADMIN_USERNAME=scott
+MANALOG_ADMIN_PASSWORD=<pick a password>
+MANALOG_ADMIN_EMAIL=scott@sentania.net
 HTTP_PORT=80                         # bump if 80/443 are taken
 HTTPS_PORT=443
 ```
 
-`ADMIN_USERNAME` / `ADMIN_PASSWORD` seed the first user on boot when
-the `users` table is empty. Safe to remove from `.env` after the user
-exists — bootstrap is a no-op on subsequent startups.
+`MANALOG_ADMIN_USERNAME` / `MANALOG_ADMIN_PASSWORD` seed the first user
+on boot when the `users` table is empty. Safe to remove from `.env`
+after the user exists — bootstrap is a no-op on subsequent startups.
 
-`TEST_USERNAME` / `TEST_PASSWORD` / `TEST_EMAIL` seed a second
-non-admin user on first boot, with the same semantics as the ADMIN
-block: only seeded when the `users` table is empty, and skipped (with
-a warning) if the env vars aren't set. Use this for the agent so it
-doesn't register as admin.
+`MANALOG_TEST_USERNAME` / `MANALOG_TEST_PASSWORD` / `MANALOG_TEST_EMAIL`
+seed a second non-admin user on first boot, with the same semantics as
+the admin block: only seeded when the `users` table is empty, and
+skipped (with a warning) if the env vars aren't set. Use this for the
+agent so it doesn't register as admin.
 
 ## 2. Drop the cert (manual TLS only)
 
@@ -255,10 +255,10 @@ login and normally holds the lock.
   Postgres. `docker compose logs db` and verify the healthcheck
   is passing.
 - **Agent registration 401 from a known-good password**: users table
-  empty on first boot because `ADMIN_USERNAME` wasn't set. Restart the
-  app container after adding it to `.env`, OR create a user
-  manually with `docker compose exec app python -c '...'` (bcrypt +
-  insert).
+  empty on first boot because `MANALOG_ADMIN_USERNAME` wasn't set.
+  Restart the app container after adding it to `.env`, OR create a
+  user manually with `docker compose exec app python -c '...'`
+  (bcrypt + insert).
 - **Caddy fails to start in manual mode**: cert/key not readable at
   `/certs/cert.pem` + `/certs/key.pem`. `docker compose logs caddy`.
 - **Windows agent trusts no certs in lab mode**: either install the

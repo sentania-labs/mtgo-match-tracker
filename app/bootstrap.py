@@ -1,10 +1,10 @@
 """Startup bootstrap — seed initial users if the DB is empty.
 
-Reads ADMIN_USERNAME / ADMIN_PASSWORD / ADMIN_EMAIL and
-TEST_USERNAME / TEST_PASSWORD / TEST_EMAIL from env. Does nothing if
-the users table already has rows. Each user is independently guarded
-by whether its env vars are present — missing ones are a warning, not
-an error.
+Reads MANALOG_ADMIN_USERNAME / MANALOG_ADMIN_PASSWORD / MANALOG_ADMIN_EMAIL
+and MANALOG_TEST_USERNAME / MANALOG_TEST_PASSWORD / MANALOG_TEST_EMAIL from
+env. Does nothing if the users table already has rows. Each user is
+independently guarded by whether its env vars are present — missing ones
+are a warning, not an error.
 """
 from __future__ import annotations
 
@@ -28,9 +28,9 @@ async def bootstrap_users(session: AsyncSession) -> int:
 
     created = 0
 
-    admin_username = os.environ.get("ADMIN_USERNAME")
-    admin_password = os.environ.get("ADMIN_PASSWORD")
-    admin_email = os.environ.get("ADMIN_EMAIL", "admin@localhost")
+    admin_username = os.environ.get("MANALOG_ADMIN_USERNAME")
+    admin_password = os.environ.get("MANALOG_ADMIN_PASSWORD")
+    admin_email = os.environ.get("MANALOG_ADMIN_EMAIL", "admin@localhost")
 
     if admin_username and admin_password:
         session.add(
@@ -44,13 +44,13 @@ async def bootstrap_users(session: AsyncSession) -> int:
         created += 1
     else:
         logger.warning(
-            "users table empty and ADMIN_USERNAME/ADMIN_PASSWORD not set; "
-            "skipping admin user seed"
+            "users table empty and MANALOG_ADMIN_USERNAME/MANALOG_ADMIN_PASSWORD "
+            "not set; skipping admin user seed"
         )
 
-    test_username = os.environ.get("TEST_USERNAME")
-    test_password = os.environ.get("TEST_PASSWORD")
-    test_email = os.environ.get("TEST_EMAIL", "test@localhost")
+    test_username = os.environ.get("MANALOG_TEST_USERNAME")
+    test_password = os.environ.get("MANALOG_TEST_PASSWORD")
+    test_email = os.environ.get("MANALOG_TEST_EMAIL", "test@localhost")
 
     if test_username and test_password:
         session.add(
@@ -64,8 +64,8 @@ async def bootstrap_users(session: AsyncSession) -> int:
         created += 1
     else:
         logger.warning(
-            "users table empty and TEST_USERNAME/TEST_PASSWORD not set; "
-            "skipping test user seed"
+            "users table empty and MANALOG_TEST_USERNAME/MANALOG_TEST_PASSWORD "
+            "not set; skipping test user seed"
         )
 
     if created == 0:

@@ -45,9 +45,9 @@ services:
       # Seed the initial user on first boot (when the users table is empty).
       # Safe to remove from the env after the user exists; bootstrap is a no-op
       # whenever the table has rows.
-      ADMIN_USERNAME: ${ADMIN_USERNAME:-}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@localhost}
+      MANALOG_ADMIN_USERNAME: ${MANALOG_ADMIN_USERNAME:-}
+      MANALOG_ADMIN_PASSWORD: ${MANALOG_ADMIN_PASSWORD:-}
+      MANALOG_ADMIN_EMAIL: ${MANALOG_ADMIN_EMAIL:-admin@localhost}
       GAMELOG_ARCHIVE_ROOT: ${GAMELOG_ARCHIVE_ROOT:-/data/manalog/gamelogs}
     volumes:
       - manalog-gamelogs:/data/manalog/gamelogs

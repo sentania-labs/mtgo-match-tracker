@@ -167,7 +167,7 @@ All other `/agent/*` routes require Bearer auth via `get_current_agent`, which l
 
 ### Bootstrap
 
-When the `users` table is empty on app startup, the lifespan hook seeds one user from `ADMIN_USERNAME` / `ADMIN_PASSWORD` / `ADMIN_EMAIL` env vars. No-op once the table has rows. First-boot-only mechanism — there is no signup endpoint in MVP.
+When the `users` table is empty on app startup, the lifespan hook seeds one user from `MANALOG_ADMIN_USERNAME` / `MANALOG_ADMIN_PASSWORD` / `MANALOG_ADMIN_EMAIL` env vars. No-op once the table has rows. First-boot-only mechanism — there is no signup endpoint in MVP.
 
 ## Key Analysis Features
 
