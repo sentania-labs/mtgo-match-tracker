@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from agent.config import AppConfig, load_config
+from agent.log_viewer import LogViewerWindow
 from agent.parser import ParsedMatch
 from agent.sender import AgentSender
 from agent.settings_window import SettingsWindow
@@ -92,6 +93,7 @@ class TrayApp:
         self._sender_loop: asyncio.AbstractEventLoop | None = None
         self._sender_loop_thread: threading.Thread | None = None
         self._settings_window: SettingsWindow | None = None
+        self._log_viewer: LogViewerWindow | None = None
 
     # ---- lifecycle -----------------------------------------------------
 
@@ -402,9 +404,12 @@ class TrayApp:
         self._refresh_menu()
 
     def _on_open_log(self, icon: Any, item: Any) -> None:
-        if self._log_file is None:
+        existing = self._log_viewer
+        if existing is not None and existing._thread is not None and existing._thread.is_alive():
             return
-        self._open_in_editor(self._log_file)
+        viewer = LogViewerWindow(self._log_file)
+        self._log_viewer = viewer
+        viewer.show()
 
     def _on_quit(self, icon: Any, item: Any) -> None:
         self._stop.set()
