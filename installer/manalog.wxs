@@ -8,6 +8,7 @@
     Scope="perMachine">
 
     <MajorUpgrade
+      AllowSameVersionUpgrades="yes"
       DowngradeErrorMessage="A newer version of Manalog is already installed."
       Schedule="afterInstallInitialize" />
 
