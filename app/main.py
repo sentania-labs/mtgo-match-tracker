@@ -20,7 +20,7 @@ from app.api import (
     matches,
     stats,
 )
-from app.bootstrap import bootstrap_admin_user
+from app.bootstrap import bootstrap_users
 from app.db import SessionLocal, engine
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with SessionLocal() as session:
-        await bootstrap_admin_user(session)
+        await bootstrap_users(session)
     yield
     await engine.dispose()
 

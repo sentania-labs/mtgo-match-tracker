@@ -36,6 +36,12 @@ HTTPS_PORT=443
 the `users` table is empty. Safe to remove from `.env` after the user
 exists — bootstrap is a no-op on subsequent startups.
 
+`TEST_USERNAME` / `TEST_PASSWORD` / `TEST_EMAIL` seed a second
+non-admin user on first boot, with the same semantics as the ADMIN
+block: only seeded when the `users` table is empty, and skipped (with
+a warning) if the env vars aren't set. Use this for the agent so it
+doesn't register as admin.
+
 ## 2. Drop the cert (manual TLS only)
 
 ```sh
