@@ -5,8 +5,7 @@
     Manufacturer="Sentania Labs"
     Version="!(bind.fileVersion.ManalogExe)"
     UpgradeCode="856f107e-016f-40a4-8dbe-e7e59232a773"
-    Scope="perMachine"
-    Icon="rainbow_pentagon.ico">
+    Scope="perMachine">
 
     <MajorUpgrade
       AllowSameVersionUpgrades="yes"
