@@ -16,7 +16,15 @@ from pathlib import Path
 
 import httpx
 
-from agent.config import AppConfig, get_config_path, load_config, save_config
+from agent.config import (
+    AppConfig,
+    ConfigLoadError,
+    detect_mtgo_log_dir,
+    get_config_path,
+    load_config_or_error,
+    log_dir_is_default,
+    save_config,
+)
 from agent.instance_lock import InstanceLock
 from agent.raw_shipper import RawShipper
 from agent.sender import AgentSender
@@ -177,6 +185,7 @@ def _prompt_registration(config: AppConfig) -> AppConfig:
 
         config.agent.agent_id = str(agent_id)
         config.agent.api_token = api_token
+        _auto_detect_log_dir_if_empty(config)
         save_config(config)
         messagebox.showinfo(
             "Manalog",
@@ -184,6 +193,45 @@ def _prompt_registration(config: AppConfig) -> AppConfig:
             parent=root,
         )
         return config
+    finally:
+        root.destroy()
+
+
+def _auto_detect_log_dir_if_empty(config: AppConfig) -> None:
+    if not log_dir_is_default(config.mtgo.log_dir):
+        return
+    detected = detect_mtgo_log_dir()
+    if detected is None:
+        return
+    config.mtgo.log_dir = str(detected)
+    logger.info("auto-detected MTGO log dir: %s", detected)
+
+
+def _show_config_error_dialog(err: ConfigLoadError, cfg_path: Path) -> None:
+    if sys.platform != "win32":
+        return
+    try:
+        import tkinter as tk
+        from tkinter import messagebox
+    except ImportError:
+        return
+
+    short = str(err).splitlines()[0] if str(err) else "unknown error"
+    if err.line is not None:
+        short = f"Line {err.line}: {short}"
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        messagebox.showerror(
+            "Manalog — config error",
+            (
+                "Config file has a syntax error — please fix it or "
+                "delete it to reset.\n\n"
+                f"File: {cfg_path}\n"
+                f"Error: {short}"
+            ),
+            parent=root,
+        )
     finally:
         root.destroy()
 
@@ -211,15 +259,19 @@ def main() -> None:
         logger.info("Another Manalog instance is already running — exiting.")
         sys.exit(0)
 
-    config = load_config()
-    if _needs_registration(config):
+    cfg_path = get_config_path()
+    config, config_error = load_config_or_error(cfg_path)
+    if config_error is not None:
+        _show_config_error_dialog(config_error, cfg_path)
+
+    if config_error is None and _needs_registration(config):
         config = _prompt_registration(config)
 
     sender = AgentSender(config)
     watched_dir = Path(config.mtgo.log_dir) if config.mtgo.log_dir else None
     raw_shipper = RawShipper(config, watched_dir=watched_dir)
     raw_shipper.start()
-    app = TrayApp(config, sender, log_file=log_file)
+    app = TrayApp(config, sender, log_file=log_file, config_error=config_error)
     try:
         app.run()
     finally:

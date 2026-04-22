@@ -6,13 +6,20 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from agent.config import (
     AgentConfig,
     AppConfig,
+    ConfigLoadError,
+    DEFAULT_LOG_DIR_PLACEHOLDER,
     MtgoConfig,
     ServerConfig,
     UpdatesConfig,
+    detect_mtgo_log_dir,
     load_config,
+    load_config_or_error,
+    log_dir_is_default,
     save_config,
 )
 
@@ -73,3 +80,71 @@ def test_tls_verify_as_path_string(tmp_path: Path) -> None:
     save_config(cfg, path)
     reloaded = load_config(path)
     assert reloaded.server.tls_verify == "/etc/ssl/internal-ca.pem"
+
+
+def test_load_config_or_error_returns_error_on_malformed_toml(
+    tmp_path: Path,
+) -> None:
+    # \U is a TOML unicode escape — unterminated here, so it fails to parse.
+    bad = tmp_path / "config.toml"
+    bad.write_text('[mtgo]\nlog_dir = "C:\\Users\\scott"\n', encoding="utf-8")
+    cfg, err = load_config_or_error(bad)
+    assert isinstance(cfg, AppConfig)
+    # Fields fall back to defaults so the tray can still start.
+    assert cfg.mtgo.log_dir == ""
+    assert isinstance(err, ConfigLoadError)
+
+
+def test_load_config_or_error_ok_path(tmp_path: Path) -> None:
+    good = tmp_path / "config.toml"
+    save_config(AppConfig(agent=AgentConfig(machine_name="test")), good)
+    cfg, err = load_config_or_error(good)
+    assert err is None
+    assert cfg.agent.machine_name == "test"
+
+
+def test_log_dir_is_default() -> None:
+    assert log_dir_is_default("") is True
+    assert log_dir_is_default("   ") is True
+    assert log_dir_is_default(DEFAULT_LOG_DIR_PLACEHOLDER) is True
+    assert log_dir_is_default(r"C:\some\real\dir") is False
+
+
+def test_detect_mtgo_log_dir_non_windows(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("agent.config.sys.platform", "linux")
+    assert detect_mtgo_log_dir() is None
+
+
+def test_detect_mtgo_log_dir_finds_dat_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr("agent.config.sys.platform", "win32")
+    local = tmp_path / "Local"
+    target = local / "Apps" / "2.0" / "abc" / "def" / "mtgo_tld"
+    target.mkdir(parents=True)
+    (target / "Match_GameLog_1234.dat").write_bytes(b"x")
+    monkeypatch.setenv("LOCALAPPDATA", str(local))
+    detected = detect_mtgo_log_dir()
+    assert detected == target
+
+
+def test_detect_mtgo_log_dir_missing_root(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr("agent.config.sys.platform", "win32")
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "nowhere"))
+    assert detect_mtgo_log_dir() is None
+
+
+def test_detect_mtgo_log_dir_caps_dirs(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr("agent.config.sys.platform", "win32")
+    local = tmp_path / "Local"
+    root = local / "Apps" / "2.0"
+    root.mkdir(parents=True)
+    # Create many siblings with no .dat file — detection should bail via the cap.
+    for i in range(20):
+        (root / f"d{i}").mkdir()
+    monkeypatch.setenv("LOCALAPPDATA", str(local))
+    assert detect_mtgo_log_dir(max_dirs=5) is None

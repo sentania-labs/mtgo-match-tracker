@@ -23,6 +23,7 @@ from agent.config import (
     MtgoConfig,
     ServerConfig,
     UpdatesConfig,
+    detect_mtgo_log_dir,
     get_config_path,
     save_config,
 )
@@ -32,26 +33,8 @@ logger = logging.getLogger(__name__)
 
 
 def auto_detect_mtgo_log_dir() -> Path | None:
-    """Find the MTGO log directory under %LOCALAPPDATA%\\Apps\\2.0.
-
-    Recursively scans for ``Match_GameLog_*.dat`` and returns the
-    parent directory of the first match. Windows-only; returns None
-    on other platforms or if no match is found.
-    """
-    if sys.platform != "win32":
-        return None
-    local_appdata = os.environ.get("LOCALAPPDATA", "")
-    if not local_appdata:
-        return None
-    root = Path(local_appdata) / "Apps" / "2.0"
-    if not root.exists():
-        return None
-    try:
-        for match in root.rglob("Match_GameLog_*.dat"):
-            return match.parent
-    except OSError:
-        logger.exception("auto-detect failed scanning %s", root)
-    return None
+    """Backwards-compatible alias — delegates to ``detect_mtgo_log_dir``."""
+    return detect_mtgo_log_dir()
 
 
 def normalize_server_url(value: str) -> str:

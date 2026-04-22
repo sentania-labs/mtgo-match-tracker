@@ -245,3 +245,79 @@ def test_restart_menu_item_visible_only_when_staged(
     assert app._has_staged_update() is False
     app._staged_update = tmp_path / "update.exe"
     assert app._has_staged_update() is True
+
+
+def test_check_updates_skips_known_failed_tag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _tray()
+    app._failed_update_tags.add("v4.0.0")
+
+    async def _check(cfg: AppConfig) -> tuple[str, str]:
+        return ("v4.0.0", "https://example/exe")
+
+    download_calls = {"n": 0}
+
+    async def _download(url: str, token: str | None) -> Path | None:
+        download_calls["n"] += 1
+        return None
+
+    monkeypatch.setattr("agent.tray.check_for_update", _check)
+    monkeypatch.setattr("agent.tray.download_and_verify", _download)
+
+    app._check_updates_once()
+
+    assert download_calls["n"] == 0
+    assert app._staged_update is None
+    app._icon.notify.assert_not_called()
+
+
+def test_check_updates_records_failure_for_skip_list(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _tray()
+
+    async def _check(cfg: AppConfig) -> tuple[str, str]:
+        return ("v4.1.0", "https://example/exe")
+
+    async def _download(url: str, token: str | None) -> Path | None:
+        return None  # simulate checksum failure
+
+    monkeypatch.setattr("agent.tray.check_for_update", _check)
+    monkeypatch.setattr("agent.tray.download_and_verify", _download)
+
+    app._check_updates_once()
+
+    assert "v4.1.0" in app._failed_update_tags
+    app._icon.notify.assert_called_once()
+
+
+def test_manual_check_bypasses_failed_tag_skip(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    app = _tray()
+    app._failed_update_tags.add("v4.2.0")
+
+    async def _check(cfg: AppConfig) -> tuple[str, str]:
+        return ("v4.2.0", "https://example/exe")
+
+    staged_exe = tmp_path / "update.exe"
+    staged_exe.write_bytes(b"good")
+
+    async def _download(url: str, token: str | None) -> Path:
+        return staged_exe
+
+    monkeypatch.setattr("agent.tray.check_for_update", _check)
+    monkeypatch.setattr("agent.tray.download_and_verify", _download)
+
+    # Simulate the manual-check override flag that _on_check_updates sets.
+    app._manual_check_override = True
+    try:
+        app._check_updates_once()
+    finally:
+        app._manual_check_override = False
+
+    assert app._staged_update == staged_exe
+    assert app._staged_update_tag == "v4.2.0"
+    # Successful download clears the failed-tag marker.
+    assert "v4.2.0" not in app._failed_update_tags

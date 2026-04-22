@@ -17,7 +17,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from agent.config import AppConfig, load_config
+from agent.config import AppConfig, ConfigLoadError, load_config
 from agent.log_viewer import LogViewerWindow
 from agent.parser import ParsedMatch
 from agent.sender import AgentSender
@@ -46,6 +46,7 @@ class ConnectionStatus(str, Enum):
     CONNECTED = "connected"
     OFFLINE = "offline"
     PAUSED = "paused"
+    CONFIG_ERROR = "config-error"
 
 
 def _make_default_icon() -> Any:
@@ -72,10 +73,12 @@ class TrayApp:
         config: AppConfig,
         sender: AgentSender,
         log_file: Path | None = None,
+        config_error: ConfigLoadError | None = None,
     ) -> None:
         self._config = config
         self._sender = sender
         self._log_file = log_file
+        self._config_error = config_error
         self._paused = False
         self._stop = threading.Event()
         self._watcher: MTGOWatcher | None = None
@@ -86,6 +89,11 @@ class TrayApp:
         self._staged_update: Path | None = None
         self._staged_update_tag: str | None = None
         self._staged_lock = threading.Lock()
+        # Tags whose download or checksum failed this session — skip until
+        # next scheduled check or until user explicitly clicks Check for
+        # Updates. Avoids burning bandwidth on a busted release.
+        self._failed_update_tags: set[str] = set()
+        self._manual_check_override = False
         # Dedicated loop for sender operations (heartbeat + upload + close).
         # httpx.AsyncClient binds its connection pool to the first loop that
         # uses it; routing every sender coroutine through a single persistent
@@ -160,6 +168,8 @@ class TrayApp:
     # ---- status --------------------------------------------------------
 
     def connection_status(self) -> ConnectionStatus:
+        if self._config_error is not None:
+            return ConnectionStatus.CONFIG_ERROR
         if not self._config.agent.api_token:
             return ConnectionStatus.NOT_REGISTERED
         if self._paused:
@@ -175,6 +185,7 @@ class TrayApp:
             ConnectionStatus.UNKNOWN: "Status: Connecting…",
             ConnectionStatus.CONNECTED: "Status: Connected",
             ConnectionStatus.OFFLINE: "Status: Offline",
+            ConnectionStatus.CONFIG_ERROR: "Status: Config error — click Settings to fix",
         }
         return labels[self.connection_status()]
 
@@ -280,6 +291,14 @@ class TrayApp:
             if self._staged_update_tag == tag and self._staged_update is not None:
                 return
 
+        if tag in self._failed_update_tags and not self._manual_check_override:
+            logger.info(
+                "updater: skipping re-download of %s — previous attempt "
+                "failed this session",
+                tag,
+            )
+            return
+
         token = self._config.updates.github_token or None
         try:
             staged = loop.run_until_complete(download_and_verify(url, token))
@@ -288,12 +307,14 @@ class TrayApp:
             staged = None
 
         if staged is None:
+            self._failed_update_tags.add(tag)
             self._notify(f"Update {tag} download failed — check log.")
             return
 
         with self._staged_lock:
             self._staged_update = staged
             self._staged_update_tag = tag
+        self._failed_update_tags.discard(tag)
         self._refresh_menu()
         self._notify(f"Update {tag} downloaded — click 'Restart to Update' to apply.")
 
@@ -346,7 +367,14 @@ class TrayApp:
         webbrowser.open(self._config.server.url)
 
     def _on_check_updates(self, icon: Any, item: Any) -> None:
-        threading.Thread(target=self._check_updates_once, daemon=True).start()
+        def _run() -> None:
+            self._manual_check_override = True
+            try:
+                self._check_updates_once()
+            finally:
+                self._manual_check_override = False
+
+        threading.Thread(target=_run, daemon=True).start()
 
     def _on_restart_to_update(self, icon: Any, item: Any) -> None:
         with self._staged_lock:

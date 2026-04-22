@@ -135,6 +135,28 @@ only the bearer token — your password is never saved locally.
 Use Windows Settings → Apps → Manalog → Uninstall, or `msiexec /x Manalog.msi`.
 The `%PROGRAMDATA%\Manalog\` directory (config, logs) is preserved on uninstall.
 
+### Editing `config.toml`
+
+`%APPDATA%\Manalog\config.toml` is a regular TOML file. If you hand-edit it
+(rather than using the tray **Settings…** dialog), watch the Windows path
+escaping:
+
+```
+# Good — single-quoted strings are literal, no escaping needed
+log_dir = 'C:\Users\YourName\AppData\Local\Apps\2.0\mtgo...'
+
+# Good — doubled backslashes inside double-quoted strings
+log_dir = "C:\\Users\\YourName\\AppData\\Local\\Apps\\2.0\\mtgo..."
+
+# Bad — \U starts a TOML unicode escape and blows up the parse
+log_dir = "C:\Users\..."
+```
+
+If the agent reports **Status: Config error** in the tray menu (or shows a
+"Config file has a syntax error" dialog on launch), either fix the offending
+line or delete the file to reset — the tray will come up with defaults either
+way so you can reopen the Settings dialog.
+
 ### Three items awaiting Scott's decision
 
 1. **Code-signing certificate** — unsigned MSI triggers SmartScreen. Acquiring an EV code-signing cert removes the warning for end users. Ballpark cost: ~$300–500/year.

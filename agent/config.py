@@ -8,6 +8,8 @@ the api_token issued by the server at registration time.
 """
 from __future__ import annotations
 
+import fnmatch
+import logging
 import os
 import sys
 import tomllib
@@ -15,9 +17,19 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 
+logger = logging.getLogger(__name__)
+
 CONFIG_FILENAME = "config.toml"
 APP_DIR_NAME_WIN = "Manalog"
 APP_DIR_NAME_POSIX = "manalog"
+
+DEFAULT_LOG_DIR_PLACEHOLDER = (
+    "C:\\Users\\<user>\\AppData\\Local\\Apps\\2.0\\<mtgo>\\GamingAudioInterop"
+)
+
+MTGO_DETECT_MAX_DEPTH = 8
+MTGO_DETECT_MAX_DIRS = 500
+MTGO_LOG_PATTERN = "Match_GameLog_*.dat"
 
 
 @dataclass
@@ -86,6 +98,62 @@ def get_log_dir() -> Path:
     return _config_dir() / "mtgo-logs"
 
 
+def detect_mtgo_log_dir(
+    *,
+    max_depth: int = MTGO_DETECT_MAX_DEPTH,
+    max_dirs: int = MTGO_DETECT_MAX_DIRS,
+) -> Path | None:
+    """Find the MTGO log directory under %LOCALAPPDATA%\\Apps\\2.0.
+
+    Walks the tree looking for ``Match_GameLog_*.dat`` and returns the
+    parent directory of the first match. Windows-only; returns None on
+    other platforms or if no match is found. Caps depth and total
+    directories scanned to avoid hanging on large AppData trees, and
+    skips any directory it can't read.
+    """
+    if sys.platform != "win32":
+        return None
+    local_appdata = os.environ.get("LOCALAPPDATA", "")
+    if not local_appdata:
+        return None
+    root = Path(local_appdata) / "Apps" / "2.0"
+    if not root.exists():
+        return None
+
+    dirs_scanned = 0
+    stack: list[tuple[Path, int]] = [(root, 0)]
+    while stack:
+        current, depth = stack.pop()
+        if depth > max_depth:
+            continue
+        dirs_scanned += 1
+        if dirs_scanned > max_dirs:
+            return None
+        try:
+            entries = list(current.iterdir())
+        except (PermissionError, OSError):
+            continue
+        subdirs: list[Path] = []
+        for entry in entries:
+            try:
+                if entry.is_file():
+                    if fnmatch.fnmatch(entry.name, MTGO_LOG_PATTERN):
+                        return current
+                elif entry.is_dir():
+                    subdirs.append(entry)
+            except OSError:
+                continue
+        for sub in reversed(subdirs):
+            stack.append((sub, depth + 1))
+    return None
+
+
+def log_dir_is_default(log_dir: str) -> bool:
+    """True if the configured log_dir is empty or the placeholder value."""
+    stripped = log_dir.strip()
+    return not stripped or stripped == DEFAULT_LOG_DIR_PLACEHOLDER
+
+
 def _parse_toml(path: Path) -> AppConfig:
     with path.open("rb") as fh:
         data = tomllib.load(fh)
@@ -131,6 +199,40 @@ def load_config(path: Path | None = None) -> AppConfig:
     return _parse_toml(cfg_path)
 
 
+class ConfigLoadError(Exception):
+    """Raised when config.toml exists but cannot be parsed."""
+
+    def __init__(self, message: str, line: int | None = None) -> None:
+        super().__init__(message)
+        self.line = line
+
+
+def load_config_or_error(
+    path: Path | None = None,
+) -> tuple[AppConfig, ConfigLoadError | None]:
+    """Load config, returning defaults + an error on parse failure.
+
+    Lets the caller continue with a usable default config while
+    surfacing the underlying TOML/IO problem for display to the user.
+    """
+    cfg_path = path or get_config_path()
+    if not cfg_path.exists():
+        return AppConfig(), None
+    try:
+        return _parse_toml(cfg_path), None
+    except tomllib.TOMLDecodeError as exc:
+        line = getattr(exc, "lineno", None)
+        msg = str(exc)
+        logger.error("config: failed to parse %s: %s", cfg_path, msg)
+        return AppConfig(), ConfigLoadError(msg, line=line)
+    except OSError as exc:
+        logger.error("config: failed to read %s: %s", cfg_path, exc)
+        return AppConfig(), ConfigLoadError(str(exc))
+    except Exception as exc:
+        logger.exception("config: unexpected error parsing %s", cfg_path)
+        return AppConfig(), ConfigLoadError(str(exc))
+
+
 def _toml_escape(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
 
@@ -153,6 +255,10 @@ def _serialize(config: AppConfig) -> str:
         f'machine_name = "{_toml_escape(config.agent.machine_name)}"',
         "",
         "[mtgo]",
+        "# Windows paths: use single quotes or double backslashes to avoid TOML escape errors",
+        "# Good:  log_dir = 'C:\\Users\\YourName\\AppData\\Local\\Apps\\2.0\\mtgo...'",
+        '# Good:  log_dir = "C:\\\\Users\\\\YourName\\\\AppData\\\\Local\\\\Apps\\\\2.0\\\\mtgo..."',
+        '# Bad:   log_dir = "C:\\Users\\..."  # \\U is a TOML unicode escape!',
         f'log_dir = "{_toml_escape(config.mtgo.log_dir)}"',
         "",
         "[updates]",
