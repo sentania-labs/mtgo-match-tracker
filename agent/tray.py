@@ -17,9 +17,10 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from agent.config import AppConfig, get_config_path
+from agent.config import AppConfig, load_config
 from agent.parser import ParsedMatch
 from agent.sender import AgentSender
+from agent.settings_window import SettingsWindow
 from agent.updater import apply_update, check_for_update, download_and_verify
 from agent.watcher import MTGOWatcher
 
@@ -90,6 +91,7 @@ class TrayApp:
         # loop avoids "Event loop is closed" on subsequent calls.
         self._sender_loop: asyncio.AbstractEventLoop | None = None
         self._sender_loop_thread: threading.Thread | None = None
+        self._settings_window: SettingsWindow | None = None
 
     # ---- lifecycle -----------------------------------------------------
 
@@ -327,6 +329,7 @@ class TrayApp:
             ),
             MenuItem("Check for Updates", self._on_check_updates),
             MenuItem("Settings…", self._on_settings),
+            MenuItem("Reload Config", self._on_reload_config),
             MenuItem("Open Log", self._on_open_log),
             Menu.SEPARATOR,
             MenuItem("Quit", self._on_quit),
@@ -363,7 +366,40 @@ class TrayApp:
         self._refresh_menu()
 
     def _on_settings(self, icon: Any, item: Any) -> None:
-        self._open_in_editor(get_config_path())
+        existing = self._settings_window
+        if existing is not None and existing._thread is not None and existing._thread.is_alive():
+            return
+        window = SettingsWindow(self._config, on_save=self.reload_config)
+        self._settings_window = window
+        window.show()
+
+    def _on_reload_config(self, icon: Any, item: Any) -> None:
+        self.reload_config()
+
+    def reload_config(self) -> None:
+        """Re-read config.toml and rebuild watcher + sender in place."""
+        try:
+            new_config = load_config()
+        except Exception:
+            logger.exception("Failed to load config from disk")
+            self._notify("Config reload failed — check log.")
+            return
+
+        self._config = new_config
+
+        self._stop_watcher()
+        self._start_watcher()
+
+        old_sender = self._sender
+        self._sender = AgentSender(new_config)
+        try:
+            self._run_on_sender_loop(old_sender.close())
+        except Exception:
+            logger.exception("Error closing previous sender during reload")
+
+        logger.info("config: hot-reloaded from disk")
+        self._notify("Config reloaded.")
+        self._refresh_menu()
 
     def _on_open_log(self, icon: Any, item: Any) -> None:
         if self._log_file is None:
