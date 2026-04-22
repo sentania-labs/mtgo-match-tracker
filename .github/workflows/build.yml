@@ -157,7 +157,15 @@ jobs:
           # persists across jobs). A stale `manalog-db` keeps the old postgres
           # password since initdb only runs on an empty data dir — auth then
           # fails with this run's DB_PASSWORD. Force-remove before bring-up.
-          docker volume rm -f manalog-db manalog-certs manalog-caddy-data manalog-caddy-config 2>/dev/null || true
+          #
+          # `docker volume rm -f` does NOT force-remove volumes with active
+          # container references (including stopped containers) — it only
+          # suppresses the "volume not found" error. Kill any container still
+          # holding each named volume first, then remove the volume.
+          for vol in manalog-db manalog-certs manalog-caddy-data manalog-caddy-config; do
+            docker ps -a --filter volume="$vol" -q | xargs -r docker rm -f
+            docker volume rm "$vol" 2>/dev/null || true
+          done
 
       - name: Bring up stack
         run: |
@@ -184,7 +192,12 @@ jobs:
           docker compose down -v --remove-orphans --timeout 30 || true
           # Mirror the pre-cleanup: remove globally-named volumes explicitly so
           # the next run on this runner starts with a clean postgres data dir.
-          docker volume rm -f manalog-db manalog-certs manalog-caddy-data manalog-caddy-config || true
+          # `docker volume rm -f` does not evict active container refs; kill
+          # any container still holding each volume first.
+          for vol in manalog-db manalog-certs manalog-caddy-data manalog-caddy-config; do
+            docker ps -a --filter volume="$vol" -q | xargs -r docker rm -f
+            docker volume rm "$vol" 2>/dev/null || true
+          done
 
       - name: Cleanup smoke images
         if: always()
