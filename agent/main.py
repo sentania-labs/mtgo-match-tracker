@@ -274,6 +274,7 @@ def main() -> None:
     raw_shipper = RawShipper(config, watched_dir=watched_dir)
     raw_shipper.start()
     app = TrayApp(config, sender, log_file=log_file, config_error=config_error)
+    app.set_raw_shipper(raw_shipper)
     try:
         app.run()
     finally:

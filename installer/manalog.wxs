@@ -5,7 +5,8 @@
     Manufacturer="Sentania Labs"
     Version="!(bind.fileVersion.ManalogExe)"
     UpgradeCode="856f107e-016f-40a4-8dbe-e7e59232a773"
-    Scope="perMachine">
+    Scope="perMachine"
+    Icon="rainbow_pentagon.ico">
 
     <MajorUpgrade
       AllowSameVersionUpgrades="yes"
@@ -13,6 +14,9 @@
       Schedule="afterInstallInitialize" />
 
     <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="rainbow_pentagon.ico" SourceFile="$(var.SourceDir)\..\agent\icons\rainbow_pentagon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="rainbow_pentagon.ico" />
 
     <!-- Install dir -->
     <StandardDirectory Id="ProgramFiles64Folder">

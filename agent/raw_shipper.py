@@ -17,6 +17,7 @@ import logging
 import queue
 import sqlite3
 import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -124,6 +125,18 @@ class RawShipper:
         self._observer: Any | None = None
         self._db: sqlite3.Connection | None = None
         self._db_lock = threading.Lock()
+        self._last_upload_at: float | None = None
+
+    # ---- public status -----------------------------------------------
+
+    @property
+    def last_upload_at(self) -> float | None:
+        """Epoch seconds of the last successful upload (200/201), or None.
+
+        No lock — float writes are atomic in CPython and a slightly stale
+        read is fine for the tray-icon heartbeat.
+        """
+        return self._last_upload_at
 
     # ---- lifecycle ----------------------------------------------------
 
@@ -346,6 +359,7 @@ class RawShipper:
                     )
                 else:
                     logger.info("raw_shipper: uploaded %s", path.name)
+                self._last_upload_at = time.time()
                 self._record_state(
                     sha,
                     path,

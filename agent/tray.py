@@ -23,6 +23,7 @@ from agent.about_window import AboutWindow
 from agent.config import AppConfig, ConfigLoadError, load_config
 from agent.log_viewer import LogViewerWindow
 from agent.parser import ParsedMatch
+from agent.raw_shipper import RawShipper
 from agent.sender import AgentSender
 from agent.settings_window import SettingsWindow
 from agent.updater import apply_update, check_for_update, download_and_verify
@@ -43,6 +44,12 @@ except Exception:  # pragma: no cover — pystray picks a display backend at
 logger = logging.getLogger(__name__)
 
 
+ICONS_DIR = Path(__file__).parent / "icons"
+ACTIVE_WINDOW_SECONDS = 180  # 3 minutes — tunable
+COLOR_CYCLE = ["W", "U", "B", "R", "G", "C"]
+COLOR_CYCLE_SECONDS = 120  # 2 minutes per pip
+
+
 class ConnectionStatus(str, Enum):
     UNKNOWN = "unknown"
     NOT_REGISTERED = "not-registered"
@@ -56,18 +63,6 @@ def _make_default_icon() -> Any:
     if Image is None:
         return None
     return Image.new("RGB", (64, 64), color=(30, 80, 200))
-
-
-def _load_icon(assets_dir: Path) -> Any:
-    if Image is None:
-        return None
-    ico = assets_dir / "icon.ico"
-    if ico.exists():
-        try:
-            return Image.open(ico)
-        except Exception:
-            logger.exception("Failed to load %s, using generated icon", ico)
-    return _make_default_icon()
 
 
 class TrayApp:
@@ -111,6 +106,70 @@ class TrayApp:
         # its own tkinter event loop.
         self._sub_windows: list[Any] = []
         self._sub_windows_lock = threading.Lock()
+        self._raw_shipper: RawShipper | None = None
+        self._icon_timer_thread: threading.Thread | None = None
+
+    # ---- raw-shipper hook (icon cycling) ------------------------------
+
+    def set_raw_shipper(self, shipper: RawShipper) -> None:
+        self._raw_shipper = shipper
+
+    def _is_tray_active(self) -> bool:
+        if self._raw_shipper is None:
+            return False
+        last = self._raw_shipper.last_upload_at
+        if last is None:
+            return False
+        return (time.time() - last) < ACTIVE_WINDOW_SECONDS
+
+    def _current_pip_name(self) -> str:
+        """Returns the icon filename stem: 'M_idle' or one of COLOR_CYCLE."""
+        if not self._is_tray_active():
+            return "M_idle"
+        last = self._raw_shipper.last_upload_at  # type: ignore[union-attr]
+        if last is None:
+            return "M_idle"
+        elapsed = time.time() - last
+        total_cycle = COLOR_CYCLE_SECONDS * len(COLOR_CYCLE)
+        pos = elapsed % total_cycle
+        idx = int(pos // COLOR_CYCLE_SECONDS)
+        return COLOR_CYCLE[idx]
+
+    def _load_pip_icon(self, name: str) -> Any:
+        """Load a pip icon from agent/icons/<name>.ico; fall back to default."""
+        if Image is None:
+            return None
+        ico_path = ICONS_DIR / f"{name}.ico"
+        if ico_path.exists():
+            try:
+                return Image.open(ico_path)
+            except Exception:
+                logger.exception("Failed to load pip icon %s", ico_path)
+        return _make_default_icon()
+
+    def _update_tray_icon(self) -> None:
+        """Swap the tray icon to match current state."""
+        if self._icon is None:
+            return
+        name = self._current_pip_name()
+        img = self._load_pip_icon(name)
+        if img is None:
+            return
+        try:
+            self._icon.icon = img
+        except Exception:
+            logger.exception("Failed to update tray icon to %s", name)
+
+    def _start_icon_timer(self) -> None:
+        """Background thread that updates the tray icon every 30 seconds."""
+        def _loop() -> None:
+            while not self._stop.is_set():
+                self._update_tray_icon()
+                self._stop.wait(30)
+
+        t = threading.Thread(target=_loop, name="manalog-icon-timer", daemon=True)
+        t.start()
+        self._icon_timer_thread = t
 
     # ---- lifecycle -----------------------------------------------------
 
@@ -119,8 +178,7 @@ class TrayApp:
             logger.warning("pystray/PIL unavailable — tray not started")
             return
 
-        assets_dir = Path(__file__).parent / "assets"
-        icon_image = _load_icon(assets_dir)
+        icon_image = self._load_pip_icon("M_idle")
         menu = self._build_menu()
         self._icon = pystray.Icon(
             "manalog", icon_image, f"Manalog v{__version__}", menu
@@ -130,6 +188,8 @@ class TrayApp:
         self._start_watcher()
         self._start_heartbeat_loop()
         self._start_update_loop()
+        self._start_icon_timer()
+        self._update_tray_icon()  # set initial icon immediately
         self._icon.run()
 
     # ---- sender loop ---------------------------------------------------
