@@ -14,8 +14,8 @@
 
     <MediaTemplate EmbedCab="yes" />
 
-    <Icon Id="rainbow_pentagon.ico" SourceFile="$(var.SourceDir)\..\agent\icons\rainbow_pentagon.ico" />
-    <Property Id="ARPPRODUCTICON" Value="rainbow_pentagon.ico" />
+    <Icon Id="AppIcon.ico" SourceFile="$(var.SourceDir)\..\agent\icons\identity.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
 
     <!-- Install dir -->
     <StandardDirectory Id="ProgramFiles64Folder">

@@ -44,10 +44,17 @@ except Exception:  # pragma: no cover — pystray picks a display backend at
 logger = logging.getLogger(__name__)
 
 
-ICONS_DIR = Path(__file__).parent / "icons"
+def _icons_dir() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS) / "agent" / "icons"  # type: ignore[attr-defined]
+    return Path(__file__).parent / "icons"
+
+
+ICONS_DIR = _icons_dir()
 ACTIVE_WINDOW_SECONDS = 180  # 3 minutes — tunable
-COLOR_CYCLE = ["W", "U", "B", "R", "G", "C"]
+COLOR_CYCLE = ["W", "U", "B", "R", "G"]
 COLOR_CYCLE_SECONDS = 120  # 2 minutes per pip
+IDLE_ICON = "C"
 
 
 class ConnectionStatus(str, Enum):
@@ -123,12 +130,12 @@ class TrayApp:
         return (time.time() - last) < ACTIVE_WINDOW_SECONDS
 
     def _current_pip_name(self) -> str:
-        """Returns the icon filename stem: 'M_idle' or one of COLOR_CYCLE."""
+        """Returns the icon filename stem: IDLE_ICON or one of COLOR_CYCLE."""
         if not self._is_tray_active():
-            return "M_idle"
+            return IDLE_ICON
         last = self._raw_shipper.last_upload_at  # type: ignore[union-attr]
         if last is None:
-            return "M_idle"
+            return IDLE_ICON
         elapsed = time.time() - last
         total_cycle = COLOR_CYCLE_SECONDS * len(COLOR_CYCLE)
         pos = elapsed % total_cycle
@@ -178,7 +185,7 @@ class TrayApp:
             logger.warning("pystray/PIL unavailable — tray not started")
             return
 
-        icon_image = self._load_pip_icon("M_idle")
+        icon_image = self._load_pip_icon(IDLE_ICON)
         menu = self._build_menu()
         self._icon = pystray.Icon(
             "manalog", icon_image, f"Manalog v{__version__}", menu

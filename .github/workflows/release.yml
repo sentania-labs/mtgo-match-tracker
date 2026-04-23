@@ -137,7 +137,7 @@ jobs:
           Get-Content agent/_build_date.py
 
       - name: Build exe
-        run: pyinstaller --onefile --windowed --name Manalog agent/main.py
+        run: pyinstaller --onefile --windowed --name Manalog --icon=agent/icons/identity.ico --add-data "agent/icons;agent/icons" agent/main.py
 
       - name: Generate checksum
         run: |
