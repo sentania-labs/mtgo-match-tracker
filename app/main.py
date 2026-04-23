@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from app.api import (
+    admin,
     agent,
     archetypes,
     decklists,
@@ -62,6 +63,7 @@ async def healthz(response: Response) -> dict:
 
 
 for router in (
+    admin.router,
     agent.router,
     gamelogs.router,
     matches.router,
