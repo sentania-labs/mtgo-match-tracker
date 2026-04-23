@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import (
     BigInteger,
@@ -268,6 +269,12 @@ class GameLogArchive(Base):
     sha256: Mapped[str] = mapped_column(CHAR(64), nullable=False, unique=True)
     stored_path: Mapped[str] = mapped_column(Text, nullable=False)
     mtgo_username: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    agent_registration_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("agent_registrations.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
 
 class Pick(Base):

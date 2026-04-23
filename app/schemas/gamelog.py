@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -14,6 +15,7 @@ class GameLogUploadMetadata(BaseModel):
     captured_at: datetime
     size: int = Field(ge=0)
     sha256: str = Field(min_length=64, max_length=64)
+    agent_id: UUID | None = None
 
     @field_validator("sha256")
     @classmethod

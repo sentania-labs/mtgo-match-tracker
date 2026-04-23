@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import tempfile
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -126,6 +127,23 @@ async def upload_gamelog(
             created=False,
         )
 
+    # Resolve optional device attribution. Old agents omit agent_id; new
+    # agents include their registration UUID so the archive row can be
+    # attributed to a specific device. Silently ignore unknown/revoked
+    # values — attribution is best-effort, not a gate.
+    attributed_agent_id: uuid.UUID | None = None
+    if meta.agent_id is not None:
+        result = await session.execute(
+            select(AgentRegistration).where(
+                AgentRegistration.user_id == agent.user_id,
+                AgentRegistration.agent_id == meta.agent_id,
+                AgentRegistration.revoked_at.is_(None),
+            )
+        )
+        matched = result.scalar_one_or_none()
+        if matched is not None:
+            attributed_agent_id = matched.id
+
     user = await session.get(User, agent.user_id)
     if user is None:
         raise HTTPException(
@@ -159,6 +177,7 @@ async def upload_gamelog(
         size_bytes=meta.size,
         sha256=meta.sha256,
         stored_path=relative,
+        agent_registration_id=attributed_agent_id,
     )
     session.add(archive)
     agent.last_seen = datetime.now(timezone.utc)
