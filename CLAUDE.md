@@ -16,6 +16,14 @@ Docker-hosted web app (FastAPI + PostgreSQL + HTMX) with a companion Windows age
 6. **SSL on all endpoints. Non-negotiable.** The FastAPI server and the agent communication channel must support TLS. Design for this from day 1 — not bolted on later. No HTTP-only production paths.
 7. **Data model is user-scoped from day 1.** All tables that hold match/game/deck/draft data must have a `user_id` FK. No single-user assumptions in schema or API. The multi-user UI can come later; the schema cannot be retrofitted.
 
+## Charter
+
+This workspace is software. The "What this is" / product
+scope above is the charter. Software authors don't touch
+infrastructure outside their charter — even with credentials
+available. For work that needs out-of-charter access, use a
+sanctioned cross-system channel.
+
 ## Tech Stack
 
 | Component | Choice |
